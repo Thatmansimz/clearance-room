@@ -6,6 +6,8 @@
 
 Built for the **Agentic Cinema** hackathon — **Parallel track**.
 
+**🔴 Live demo: https://clearanceroom-957638696965.us-central1.run.app** — hosted on Cloud Run, running the full live pipeline (Gemini 3.6 Flash on Vertex AI + Parallel Search). Hit **RUN CLEARANCE** and watch it tear the sample script apart in about a minute.
+
 ## How it works
 
 A fixed four-stage pipeline (orchestrated in code — deterministic by construction, not left to model whim):
