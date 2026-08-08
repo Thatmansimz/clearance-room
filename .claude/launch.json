@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "/Users/michaelwilliamsii/clearance-room/backend/.venv/bin/uvicorn",
+      "runtimeArgs": ["app.main:app", "--port", "8000", "--app-dir", "/Users/michaelwilliamsii/clearance-room/backend"],
+      "port": 8000
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "/Users/michaelwilliamsii/clearance-room/web"],
+      "port": 5173
+    }
+  ]
+}
