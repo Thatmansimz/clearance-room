@@ -6,13 +6,19 @@ const TILE_STYLES: Record<string, string> = {
   BLOCKED: 'border-red-500/40 text-red-500',
 }
 
-export function ReportPanel({ report, title }: { report: Report; title: string }) {
+export function ReportPanel({
+  report,
+  title,
+  heading = 'FINAL CLEARANCE REPORT',
+}: {
+  report: Report
+  title: string
+  heading?: string
+}) {
   return (
     <section className="card-in mt-10 rounded-xl border border-amber-400/30 bg-stone-900/70 p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-display text-3xl tracking-wide text-amber-400">
-          FINAL CLEARANCE REPORT
-        </h2>
+        <h2 className="font-display text-3xl tracking-wide text-amber-400">{heading}</h2>
         <span className="font-mono text-[10px] uppercase tracking-widest text-stone-500">
           {title}
         </span>
@@ -30,6 +36,26 @@ export function ReportPanel({ report, title }: { report: Report; title: string }
         ))}
       </div>
 
+      {report.elapsed_seconds != null && (
+        <div className="mb-5 flex flex-wrap items-baseline gap-x-6 gap-y-1 rounded-lg border border-stone-800 bg-stone-950/60 px-4 py-3">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-stone-500">
+            human clearance report:{' '}
+            <span className="text-stone-300">$1,000–$3,000 · 5–10 business days</span>{' '}
+            <a
+              href="https://www.coastalclearances.com/script-clearance-reports"
+              target="_blank"
+              rel="noreferrer"
+              className="text-sky-500 underline decoration-dotted hover:text-sky-300"
+            >
+              source
+            </a>
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-widest text-amber-400">
+            this report: {Math.round(report.elapsed_seconds)}s · {report.searches} live searches ·{' '}
+            {report.sources} sources
+          </span>
+        </div>
+      )}
       <p className="max-w-4xl text-[14px] leading-relaxed text-stone-200">{report.summary}</p>
 
       <p className="mt-4 font-mono text-[9px] uppercase tracking-widest text-stone-600">

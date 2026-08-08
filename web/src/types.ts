@@ -16,19 +16,58 @@ export interface Source {
   title: string
 }
 
+export interface Precedent {
+  case: string
+  url: string
+}
+
 export interface EntityResult {
   verdict: Verdict
   risk_score: number
   rationale: string
   recommendation: string
   sources: Source[]
+  precedent?: Precedent | null
 }
 
 export interface Report {
   summary: string
   stats: Record<Verdict, number>
   items: (Entity & EntityResult)[]
+  elapsed_seconds?: number
+  searches?: number
+  sources?: number
 }
+
+export interface TitleConflict {
+  name: string
+  medium: string
+  year: string
+  url: string
+  severity: string
+}
+
+export interface TitleVerdict {
+  title: string
+  verdict: Verdict
+  risk_score: number
+  conflicts: TitleConflict[]
+  rationale: string
+  recommendation: string
+}
+
+export interface TitleAlternate {
+  title: string
+  verdict: Verdict
+  note: string
+}
+
+export type TitleGuardEvent =
+  | { type: 'tg_stage'; stage: 'sweep' | 'assess' | 'alternates'; status: 'start' | 'done'; searches?: number; sources?: number }
+  | ({ type: 'tg_verdict' } & TitleVerdict)
+  | ({ type: 'tg_alternate' } & TitleAlternate)
+  | { type: 'tg_done' }
+  | { type: 'error'; message: string }
 
 export type PipelineEvent =
   | { type: 'stage'; stage: StageKey; status: 'start' | 'done'; count?: number }
@@ -36,6 +75,7 @@ export type PipelineEvent =
   | { type: 'entity_status'; id: string; status: 'researching' | 'assessing' }
   | ({ type: 'entity_result'; id: string } & EntityResult)
   | ({ type: 'report' } & Report)
+  | { type: 'ticker'; searches: number; sources: number }
   | { type: 'warning'; id: string; message: string }
   | { type: 'done'; mock: boolean }
   | { type: 'error'; message: string }

@@ -158,3 +158,29 @@ async def mock_assess(entity: dict[str, Any], evidence: list[dict[str, Any]]) ->
 async def mock_report(assessed: list[dict[str, Any]]) -> str:
     await asyncio.sleep(2.0)
     return MOCK_REPORT
+
+
+async def mock_title_check(title: str):
+    """Canned TitleGuard flow so the UI demos without keys."""
+    yield {"type": "tg_stage", "stage": "sweep", "status": "start"}
+    await asyncio.sleep(1.5)
+    yield {"type": "tg_stage", "stage": "sweep", "status": "done", "searches": 2, "sources": 7}
+    yield {"type": "tg_stage", "stage": "assess", "status": "start"}
+    await asyncio.sleep(1.2)
+    yield {
+        "type": "tg_verdict", "title": title, "verdict": "CAUTION", "risk_score": 45,
+        "conflicts": [
+            {"name": f"{title} (podcast)", "medium": "podcast", "year": "2023",
+             "url": "https://example.com/mock", "severity": "MEDIUM"},
+        ],
+        "rationale": "Mock verdict — enable live mode for a real sweep.",
+        "recommendation": "Run live TitleGuard before marketing under this title.",
+    }
+    yield {"type": "tg_stage", "stage": "assess", "status": "done"}
+    yield {"type": "tg_stage", "stage": "alternates", "status": "start"}
+    for alt in (f"{title} AFTER DARK", f"DEAD AIR", f"THE {title.split()[0]} HOUR"):
+        await asyncio.sleep(0.8)
+        yield {"type": "tg_alternate", "title": alt, "verdict": "CLEAR",
+               "note": "Mock screen — no conflicts in canned data."}
+    yield {"type": "tg_stage", "stage": "alternates", "status": "done"}
+    yield {"type": "tg_done"}

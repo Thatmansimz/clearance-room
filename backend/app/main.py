@@ -16,6 +16,8 @@ from pydantic import BaseModel
 
 from . import config
 from .pipeline import run_pipeline
+from .titleguard import check_title
+from .truestory import run_truestory
 
 app = FastAPI(title="ClearanceRoom", version="0.1.0")
 
@@ -26,17 +28,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def _sample_script_path() -> Path:
+def _script_path(filename: str) -> Path:
     here = Path(__file__).resolve()
     # repo layout: backend/app/main.py -> ../../scripts; Docker: /app/app/main.py -> /app/scripts
     for base in (here.parents[2] if len(here.parents) > 2 else here.parents[1], here.parents[1]):
-        candidate = base / "scripts" / "midnight_static.txt"
+        candidate = base / "scripts" / filename
         if candidate.exists():
             return candidate
-    raise FileNotFoundError("scripts/midnight_static.txt not found")
+    raise FileNotFoundError(f"scripts/{filename} not found")
 
 
-SAMPLE_SCRIPT = _sample_script_path()
+SAMPLES = {
+    "clearance": ("MIDNIGHT STATIC", _script_path("midnight_static.txt")),
+    "truestory": ("STATIC & LIGHTNING", _script_path("static_and_lightning.txt")),
+}
 
 
 class RunRequest(BaseModel):
@@ -54,14 +59,45 @@ async def health() -> dict:
 
 
 @app.get("/api/sample")
-async def sample() -> dict:
-    return {"title": "MIDNIGHT STATIC", "script": SAMPLE_SCRIPT.read_text()}
+async def sample(mode: str = "clearance") -> dict:
+    title, path = SAMPLES.get(mode, SAMPLES["clearance"])
+    return {"title": title, "script": path.read_text()}
 
 
 @app.post("/api/clearance/run")
 async def run(req: RunRequest) -> StreamingResponse:
     async def stream():
         async for event in run_pipeline(req.script):
+            yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/api/truestory/run")
+async def truestory(req: RunRequest) -> StreamingResponse:
+    async def stream():
+        async for event in run_truestory(req.script):
+            yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+class TitleRequest(BaseModel):
+    title: str
+
+
+@app.post("/api/title/check")
+async def title_check(req: TitleRequest) -> StreamingResponse:
+    async def stream():
+        async for event in check_title(req.title):
             yield f"data: {json.dumps(event)}\n\n"
 
     return StreamingResponse(
