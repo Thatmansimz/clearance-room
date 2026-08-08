@@ -8,6 +8,16 @@ Built for the **Agentic Cinema** hackathon — **Parallel track**.
 
 **🔴 Live demo: https://clearanceroom-957638696965.us-central1.run.app** — hosted on Cloud Run, running the full live pipeline (Gemini 3.6 Flash on Vertex AI + Parallel Search). Hit **RUN CLEARANCE** and watch it tear the sample script apart in about a minute.
 
+## Three agents, one war room
+
+**🎬 Script Clearance** — the flagship. Every brand, song, artwork, clip, person, and location in a screenplay, researched live and risk-graded.
+
+**⚖️ True-Story Shield** — defamation fact-check for "based on a true story" projects. Extracts every factual assertion about a real person and verifies it against the live public record. *Baby Reindeer* depicted a woman as a twice-convicted stalker with no conviction on record; a federal judge let a [$170M defamation suit](https://deadline.com/2024/09/baby-reindeer-netflix-trial-date-2025-1236085108/) proceed on exactly that gap. This runs the check the court said was missing.
+
+**🛡 TitleGuard** — working-title collision sweep. Registered marks *and* the common-law web uses trademark databases miss — a 2016 YouTube web series titled *Situationships* won a [2025 injunction](https://www.billboard.com/pro/ti-movie-title-lawsuit-rapper-situationships-judge/) blocking T.I.'s finished film. Returns three cleared alternates, each screened live.
+
+Findings carry **precedent cards** citing documented incidents with real dollar figures, and every run reports its own elapsed time against the $1,000–$3,000 / 5–10 business day human benchmark.
+
 ## How it works
 
 A fixed four-stage pipeline (orchestrated in code — deterministic by construction, not left to model whim):
@@ -23,8 +33,14 @@ Every step streams to the UI over SSE — you watch the breakdown land, research
 
 ### Runtime integration points (for judges)
 
-- **Google Cloud / Gemini / ADK**: [`backend/app/pipeline.py`](backend/app/pipeline.py) — `google.adk.agents.LlmAgent` + `InMemoryRunner` (stages 1 & 4), `google.genai.Client` on Vertex AI (stage 3).
-- **Parallel Search API**: [`backend/app/parallel_client.py`](backend/app/parallel_client.py) — `POST https://api.parallel.ai/v1/search`, called once per extracted entity at runtime.
+- **Google Cloud / Gemini / ADK**: [`backend/app/pipeline.py`](backend/app/pipeline.py) — `google.adk.agents.LlmAgent` + `InMemoryRunner` (stages 1 & 4), `google.genai.Client` on Vertex AI (stage 3). Same pattern in [`truestory.py`](backend/app/truestory.py) and [`titleguard.py`](backend/app/titleguard.py).
+- **Parallel Search API**: [`backend/app/parallel_client.py`](backend/app/parallel_client.py) — `POST https://api.parallel.ai/v1/search`, called once per extracted entity at runtime; TitleGuard fires a two-pronged sweep (registrations + common-law) per title.
+
+Models: `gemini-3.6-flash` for extraction and assessment, `gemini-3.1-pro-preview` for reports, both on Vertex AI at the `global` location.
+
+## Roadmap research
+
+[`docs/RESEARCH.md`](docs/RESEARCH.md) — 35 documented industry pain points across six lenses (directors, producers, execs, legal/BLA, post, indie), every claim cited. True-Story Shield and TitleGuard came from it; Rights Genealogy, E&O Binder, Temp Love Rescue, Placement Radar, and Anachronism Audit are next.
 
 ## Run it
 

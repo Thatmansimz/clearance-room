@@ -11,6 +11,8 @@ import type {
 import { StageRail } from './components/StageRail'
 import { EntityCard } from './components/EntityCard'
 import { ReportPanel } from './components/ReportPanel'
+import { TitleGuard } from './components/TitleGuard'
+import { streamSSE } from './lib/stream'
 
 const INITIAL_STAGES: Record<StageKey, StageStatus> = {
   breakdown: 'idle',
@@ -19,7 +21,36 @@ const INITIAL_STAGES: Record<StageKey, StageStatus> = {
   report: 'idle',
 }
 
+type Mode = 'clearance' | 'truestory'
+
+const MODES: Record<Mode, {
+  label: string
+  tagline: string
+  endpoint: string
+  button: string
+  itemsLabel: string
+  reportTitle: string
+}> = {
+  clearance: {
+    label: '🎬 Script Clearance',
+    tagline: 'brands · music · artwork · clips · locations',
+    endpoint: '/api/clearance/run',
+    button: '🎬 RUN CLEARANCE',
+    itemsLabel: '🎞 clearance items',
+    reportTitle: 'FINAL CLEARANCE REPORT',
+  },
+  truestory: {
+    label: '⚖️ True-Story Shield',
+    tagline: 'defamation fact-check for “based on a true story”',
+    endpoint: '/api/truestory/run',
+    button: '⚖️ FACT-CHECK SCRIPT',
+    itemsLabel: '⚖ factual claims',
+    reportTitle: 'DEFAMATION EXPOSURE REPORT',
+  },
+}
+
 export default function App() {
+  const [mode, setMode] = useState<Mode>('clearance')
   const [script, setScript] = useState('')
   const [title, setTitle] = useState('UNTITLED SCRIPT')
   const [running, setRunning] = useState(false)
@@ -29,17 +60,27 @@ export default function App() {
   const [statuses, setStatuses] = useState<Record<string, EntityStatus>>({})
   const [results, setResults] = useState<Record<string, EntityResult>>({})
   const [report, setReport] = useState<Report | null>(null)
+  const [ticker, setTicker] = useState<{ searches: number; sources: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetch('/api/sample')
+    fetch(`/api/sample?mode=${mode}`)
       .then((r) => r.json())
       .then((d) => {
         setScript(d.script)
         setTitle(d.title)
+        setEntities([])
+        setStatuses({})
+        setResults({})
+        setReport(null)
+        setTicker(null)
+        setStages(INITIAL_STAGES)
       })
       .catch(() => setError('Backend not reachable — is the API server running?'))
+  }, [mode])
+
+  useEffect(() => {
     fetch('/api/health')
       .then((r) => r.json())
       .then((d) => setMock({ gemini: d.mock_gemini, parallel: d.mock_parallel }))
@@ -69,6 +110,9 @@ export default function App() {
         setReport(rep as Report)
         break
       }
+      case 'ticker':
+        setTicker({ searches: ev.searches, sources: ev.sources })
+        break
       case 'done':
         setRunning(false)
         break
@@ -87,37 +131,17 @@ export default function App() {
     setStatuses({})
     setResults({})
     setReport(null)
+    setTicker(null)
     boardRef.current?.scrollIntoView({ behavior: 'smooth' })
 
     try {
-      const resp = await fetch('/api/clearance/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ script }),
-      })
-      if (!resp.ok || !resp.body) throw new Error(`API ${resp.status}`)
-      const reader = resp.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const chunks = buffer.split('\n\n')
-        buffer = chunks.pop() ?? ''
-        for (const chunk of chunks) {
-          const line = chunk.trim()
-          if (line.startsWith('data: ')) {
-            handleEvent(JSON.parse(line.slice(6)) as PipelineEvent)
-          }
-        }
-      }
+      await streamSSE<PipelineEvent>(MODES[mode].endpoint, { script }, handleEvent)
     } catch (e) {
       setError(String(e))
     } finally {
       setRunning(false)
     }
-  }, [script, handleEvent])
+  }, [script, mode, handleEvent])
 
   const doneCount = Object.values(statuses).filter((s) => s === 'done').length
 
@@ -160,6 +184,32 @@ export default function App() {
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-8">
+        {/* Mode switch */}
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          {(Object.keys(MODES) as Mode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              disabled={running}
+              className={[
+                'rounded-lg border px-4 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-50',
+                mode === m
+                  ? 'border-amber-400/70 bg-amber-400/10'
+                  : 'border-stone-800 bg-stone-900/40 hover:border-stone-700',
+              ].join(' ')}
+            >
+              <div
+                className={`font-display text-xl tracking-wide ${mode === m ? 'text-amber-400' : 'text-stone-300'}`}
+              >
+                {MODES[m].label}
+              </div>
+              <div className="font-mono text-[9px] uppercase tracking-widest text-stone-500">
+                {MODES[m].tagline}
+              </div>
+            </button>
+          ))}
+        </div>
+
         <div className="grid gap-8 lg:grid-cols-[minmax(320px,2fr)_3fr]">
           {/* Script panel */}
           <section>
@@ -182,13 +232,14 @@ export default function App() {
               disabled={running || !script.trim()}
               className="mt-3 w-full rounded-lg bg-amber-400 py-3 font-display text-2xl tracking-wider text-stone-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {running ? 'ROLLING…' : '🎬 RUN CLEARANCE'}
+              {running ? 'ROLLING…' : MODES[mode].button}
             </button>
             {error && (
               <p className="mt-3 rounded border border-red-500/40 bg-red-950/40 p-3 font-mono text-xs text-red-300">
                 {error}
               </p>
             )}
+            {mode === 'clearance' && <TitleGuard key={title} initialTitle={title} />}
           </section>
 
           {/* Pipeline board */}
@@ -197,9 +248,14 @@ export default function App() {
             {entities.length > 0 && (
               <div className="mb-3 mt-6 flex items-center justify-between">
                 <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-stone-400">
-                  🎞 clearance items
+                  {MODES[mode].itemsLabel}
                 </h2>
                 <span className="font-mono text-[10px] text-stone-500">
+                  {ticker && (
+                    <span className={running ? 'pulse-soft mr-4 text-sky-400' : 'mr-4 text-sky-500'}>
+                      🔍 {ticker.searches} live searches · {ticker.sources} sources
+                    </span>
+                  )}
                   {doneCount}/{entities.length} assessed
                 </span>
               </div>
@@ -227,7 +283,9 @@ export default function App() {
           </section>
         </div>
 
-        {report && <ReportPanel report={report} title={title} />}
+        {report && (
+          <ReportPanel report={report} title={title} heading={MODES[mode].reportTitle} />
+        )}
       </main>
 
       <footer className="border-t border-stone-800 py-4 text-center font-mono text-[10px] uppercase tracking-widest text-stone-600">

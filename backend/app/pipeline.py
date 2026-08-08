@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Any, AsyncGenerator
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field
 
@@ -23,6 +25,39 @@ from . import config, mockdata, parallel_client
 
 VERDICTS = ("CLEAR", "CAUTION", "BLOCKED")
 CATEGORIES = ("BRAND", "PERSON", "MUSIC", "ARTWORK", "LOCATION", "MEDIA", "ORGANIZATION", "OTHER")
+
+# Documented real-world incidents, attached to non-CLEAR findings so severity
+# reads in dollars, not adjectives. Sources: docs/RESEARCH.md (all visited).
+PRECEDENTS: dict[str, dict[str, str]] = {
+    "ARTWORK": {
+        "case": "Fine-art images filmed without permission drew a $900K copyright claim",
+        "url": "https://www.frontrowinsurance.com/errors-omissions-insurance-101",
+    },
+    "MUSIC": {
+        "case": "A 'sound-alike' rendition drew a $65K misappropriation claim",
+        "url": "https://www.frontrowinsurance.com/errors-omissions-insurance-101",
+    },
+    "PERSON": {
+        "case": "Baby Reindeer's portrayal of a real person drew a $170M defamation suit",
+        "url": "https://deadline.com/2024/09/baby-reindeer-netflix-trial-date-2025-1236085108/",
+    },
+    "MEDIA": {
+        "case": "Studio-library clips license at roughly $5K-$25K per minute",
+        "url": "https://www.filmindependent.org/blog/8-keys-to-successfully-delivering-your-film-this-festival-season/",
+    },
+    "ORGANIZATION": {
+        "case": "A YouTube series' common-law title rights won an injunction blocking T.I.'s finished film",
+        "url": "https://www.billboard.com/pro/ti-movie-title-lawsuit-rapper-situationships-judge/",
+    },
+    "BRAND": {
+        "case": "E&O underwriters require brand clearance before any distributor will release",
+        "url": "https://www.frontrowinsurance.com/errors-omissions-insurance-101",
+    },
+    "LOCATION": {
+        "case": "Unresolved location/design-mark issues are E&O flags that stall distribution",
+        "url": "https://www.frontrowinsurance.com/errors-omissions-insurance-101",
+    },
+}
 
 
 class Entity(BaseModel):
@@ -156,6 +191,9 @@ async def run_pipeline(script_text: str) -> AsyncGenerator[dict[str, Any], None]
         await queue.put(event)
 
     async def work() -> None:
+        t0 = time.monotonic()
+        searches_fired = 0
+        domains_seen: set[str] = set()
         try:
             # -- Stage 1: BREAKDOWN --------------------------------------
             await emit({"type": "stage", "stage": "breakdown", "status": "start"})
@@ -184,7 +222,7 @@ async def run_pipeline(script_text: str) -> AsyncGenerator[dict[str, Any], None]
             assessed: list[dict[str, Any]] = []
 
             async def investigate(entity: dict[str, Any]) -> None:
-                nonlocal assess_started
+                nonlocal assess_started, searches_fired
                 async with sem:
                     await emit({"type": "entity_status", "id": entity["id"],
                                 "status": "researching"})
@@ -194,6 +232,13 @@ async def run_pipeline(script_text: str) -> AsyncGenerator[dict[str, Any], None]
                         evidence = []
                         await emit({"type": "warning", "id": entity["id"],
                                     "message": f"research failed: {exc}"})
+                    searches_fired += 1
+                    for ev_item in evidence:
+                        host = urlparse(ev_item.get("url", "")).hostname
+                        if host:
+                            domains_seen.add(host.removeprefix("www."))
+                    await emit({"type": "ticker", "searches": searches_fired,
+                                "sources": len(domains_seen)})
                     if not assess_started:
                         assess_started = True
                         await emit({"type": "stage", "stage": "assess",
@@ -204,9 +249,14 @@ async def run_pipeline(script_text: str) -> AsyncGenerator[dict[str, Any], None]
                     record = {**entity, **result, "sources": [
                         {"url": ev["url"], "title": ev["title"]} for ev in evidence
                     ]}
+                    if result["verdict"] != "CLEAR":
+                        precedent = PRECEDENTS.get(entity["category"])
+                        if precedent:
+                            record["precedent"] = precedent
                     assessed.append(record)
                     await emit({"type": "entity_result", "id": entity["id"],
-                                **result, "sources": record["sources"]})
+                                **result, "sources": record["sources"],
+                                "precedent": record.get("precedent")})
 
             await asyncio.gather(*(investigate(e) for e in entities))
             await emit({"type": "stage", "stage": "research", "status": "done"})
@@ -224,7 +274,9 @@ async def run_pipeline(script_text: str) -> AsyncGenerator[dict[str, Any], None]
                 summary = await _run_adk(agent, json.dumps(assessed, indent=1))
             stats = {v: sum(1 for a in assessed if a["verdict"] == v) for v in VERDICTS}
             await emit({"type": "report", "summary": summary.strip(),
-                        "stats": stats, "items": assessed})
+                        "stats": stats, "items": assessed,
+                        "elapsed_seconds": round(time.monotonic() - t0, 1),
+                        "searches": searches_fired, "sources": len(domains_seen)})
             await emit({"type": "stage", "stage": "report", "status": "done"})
             await emit({"type": "done", "mock": config.MOCK_GEMINI or config.MOCK_PARALLEL})
         except Exception as exc:

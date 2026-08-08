@@ -82,6 +82,22 @@ export function EntityCard({
             </span>
             {result.recommendation}
           </p>
+          {result.precedent && (
+            <p className="rounded border border-red-500/20 bg-red-950/20 px-2 py-1.5 text-[11px] leading-snug text-stone-300">
+              <span className="font-mono text-[9px] uppercase tracking-widest text-red-400">
+                ⚖ precedent ·{' '}
+              </span>
+              {result.precedent.case}{' '}
+              <a
+                href={result.precedent.url}
+                target="_blank"
+                rel="noreferrer"
+                className="font-mono text-[9px] text-sky-500 underline decoration-dotted hover:text-sky-300"
+              >
+                source
+              </a>
+            </p>
+          )}
           <div className="flex items-center justify-between">
             <div className="flex flex-wrap gap-2">
               {result.sources.slice(0, 3).map((s) => (
