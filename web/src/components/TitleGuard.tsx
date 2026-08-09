@@ -20,7 +20,13 @@ const STAGE_LABEL: Record<string, string> = {
   alternates: 'screening cleared alternates',
 }
 
-export function TitleGuard({ initialTitle }: { initialTitle: string }) {
+export function TitleGuard({
+  initialTitle,
+  onVerdict,
+}: {
+  initialTitle: string
+  onVerdict?: (v: TitleVerdict) => void
+}) {
   const [title, setTitle] = useState(initialTitle)
   const [running, setRunning] = useState(false)
   const [stage, setStage] = useState<string | null>(null)
@@ -42,6 +48,7 @@ export function TitleGuard({ initialTitle }: { initialTitle: string }) {
           case 'tg_verdict': {
             const { type: _t, ...v } = ev
             setVerdict(v as TitleVerdict)
+            onVerdict?.(v as TitleVerdict)
             break
           }
           case 'tg_alternate': {

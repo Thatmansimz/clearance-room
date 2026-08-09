@@ -47,3 +47,30 @@ body {
   50% { opacity: 0.15; }
 }
 .blink { animation: blink 1.1s step-end infinite; }
+
+/* Print: the report as a clearance-firm deliverable — light, ink-friendly */
+@media print {
+  body { background: #fff; color: #1c1917; }
+  .grain::before { display: none; }
+  header, footer, .no-print { display: none !important; }
+  main > .mb-6, /* mode switch */
+  main .grid.lg\:grid-cols-\[minmax\(320px\,2fr\)_3fr\] > section:first-child { display: none; }
+  main .grid { grid-template-columns: 1fr !important; }
+  #clearance-report {
+    margin-top: 0;
+    border-color: #d6d3d1;
+    background: #fff !important;
+  }
+  #clearance-report *, article, .bg-stone-900\/60, .bg-stone-950\/50, .bg-stone-950\/60 {
+    background: #fff !important;
+    border-color: #d6d3d1 !important;
+  }
+  .text-stone-100, .text-stone-200, .text-stone-300 { color: #1c1917 !important; }
+  .text-stone-400, .text-stone-500, .text-stone-600 { color: #57534e !important; }
+  .text-amber-400 { color: #92400e !important; }
+  .text-emerald-400 { color: #065f46 !important; }
+  .text-red-400, .text-red-500 { color: #991b1b !important; }
+  .text-sky-400, .text-sky-500 { color: #075985 !important; }
+  article { break-inside: avoid; }
+  #clearance-report li { break-inside: avoid; }
+}

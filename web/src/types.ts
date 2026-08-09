@@ -30,14 +30,50 @@ export interface EntityResult {
   precedent?: Precedent | null
 }
 
+export interface EoFinding {
+  id: string
+  name: string
+  verdict: Verdict
+}
+
+export type EoStatus = 'clear' | 'flagged' | 'pending' | 'out_of_scope'
+
+export interface EoRow {
+  id: string
+  title: string
+  requirement: string
+  source_url: string
+  status: EoStatus
+  worst?: Verdict
+  note: string
+  findings: EoFinding[]
+}
+
 export interface Report {
   summary: string
   stats: Record<Verdict, number>
   items: (Entity & EntityResult)[]
+  eo_checklist?: EoRow[]
   elapsed_seconds?: number
   searches?: number
   sources?: number
 }
+
+export interface AiResult {
+  usage: string
+  label: string
+  verdict: Verdict
+  guidance: string
+  sources: Source[]
+}
+
+export type AiCheckEvent =
+  | { type: 'ai_stage'; status: string }
+  | ({ type: 'ai_result' } & AiResult)
+  | { type: 'ai_done' }
+  | { type: 'error'; message: string }
+
+export type PipelineMode = 'clearance' | 'truestory'
 
 export interface TitleConflict {
   name: string
