@@ -160,16 +160,16 @@ export default function App() {
     <div className="grain min-h-screen">
       {/* Header */}
       <header className="border-b border-stone-800 bg-stone-950/80 backdrop-blur sticky top-0 z-40">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-y-1 px-6 py-3">
           <div className="flex items-baseline gap-3">
             <h1 className="font-display text-3xl tracking-wide text-amber-400">
               CLEARANCE<span className="text-stone-100">ROOM</span>
             </h1>
-            <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-stone-500">
+            <span className="hidden font-mono text-[11px] uppercase tracking-[0.25em] text-stone-500 sm:inline">
               every frame cleared
             </span>
           </div>
-          <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-widest">
+          <div className="flex flex-wrap items-center gap-3 font-mono text-[11px] uppercase tracking-widest">
             {mock.gemini && (
               <span className="rounded border border-fuchsia-500/50 px-2 py-0.5 text-fuchsia-400">
                 gemini mock
@@ -189,12 +189,17 @@ export default function App() {
                 <span className="blink inline-block h-2 w-2 rounded-full bg-red-500" /> rec
               </span>
             )}
-            <span className="text-stone-500">gemini × parallel</span>
+            <span className="hidden text-stone-500 md:inline">gemini × parallel</span>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-8">
+        <p className="mb-6 max-w-3xl text-[14px] leading-relaxed text-stone-400">
+          Script clearance in minutes, not weeks. A deterministic Gemini agent breaks your
+          screenplay into clearable items, researches each one on the live web with Parallel
+          Search, and hands you an E&amp;O-ready clearance report.
+        </p>
         {/* Mode switch */}
         <div className="mb-6 flex flex-wrap items-center gap-2">
           {(Object.keys(MODES) as Mode[]).map((m) => (
@@ -290,6 +295,18 @@ export default function App() {
                 />
               ))}
             </div>
+            {entities.length === 0 && running && (
+              <div className="mt-6 rounded-lg border border-stone-800 p-10 text-center">
+                <p className="pulse-soft font-display text-2xl tracking-wide text-amber-400">
+                  {mode === 'truestory'
+                    ? 'GEMINI IS READING FOR CLAIMS…'
+                    : 'GEMINI IS BREAKING DOWN THE SCRIPT…'}
+                </p>
+                <p className="mt-1 font-mono text-xs text-stone-500">
+                  clearable items land here as they're found
+                </p>
+              </div>
+            )}
             {entities.length === 0 && !running && (
               <div className="mt-6 rounded-lg border border-dashed border-stone-800 p-10 text-center">
                 <p className="font-display text-2xl tracking-wide text-stone-600">
@@ -298,6 +315,11 @@ export default function App() {
                 <p className="mt-1 font-mono text-xs text-stone-600">
                   run clearance to light it up
                 </p>
+                <div className="mx-auto mt-5 grid max-w-md gap-1.5 text-left font-mono text-[11px] text-stone-500">
+                  <p>01 · gemini extracts every clearable item from the script</p>
+                  <p>02 · parallel search researches each one on the live web</p>
+                  <p>03 · gemini grades risk · you get an e&amp;o-ready report</p>
+                </div>
               </div>
             )}
           </section>

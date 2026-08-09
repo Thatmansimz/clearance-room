@@ -15,7 +15,7 @@ export function StageRail({
   mode?: PipelineMode
 }) {
   return (
-    <ol className="flex items-stretch gap-2">
+    <ol className="grid grid-cols-2 items-stretch gap-2 md:flex">
       {STAGES.map((s, i) => {
         const st = stages[s.key]
         return (
@@ -56,7 +56,7 @@ export function StageRail({
                 {s.engine}
               </div>
             </div>
-            {i < STAGES.length - 1 && <span className="text-stone-700">›</span>}
+            {i < STAGES.length - 1 && <span className="hidden text-stone-700 md:inline">›</span>}
           </li>
         )
       })}
