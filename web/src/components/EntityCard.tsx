@@ -9,6 +9,13 @@ const CATEGORY_ICONS: Record<string, string> = {
   MEDIA: '📺',
   ORGANIZATION: '🏢',
   OTHER: '📎',
+  // True-Story Shield claim categories
+  CRIMINAL: '⚖',
+  PROFESSIONAL: '💼',
+  FINANCIAL: '💰',
+  RELATIONSHIP: '💍',
+  HEALTH: '🏥',
+  QUOTE: '💬',
 }
 
 const VERDICT_STYLES: Record<string, { stamp: string; bar: string }> = {

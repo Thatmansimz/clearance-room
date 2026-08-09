@@ -90,6 +90,25 @@ async def truestory(req: RunRequest) -> StreamingResponse:
     )
 
 
+class AiCheckRequest(BaseModel):
+    usages: list[str]
+
+
+@app.post("/api/eo/ai-check")
+async def ai_check(req: AiCheckRequest) -> StreamingResponse:
+    from .eobinder import run_ai_check
+
+    async def stream():
+        async for event in run_ai_check(req.usages):
+            yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 class TitleRequest(BaseModel):
     title: str
 

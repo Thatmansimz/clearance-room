@@ -1,4 +1,4 @@
-import type { StageKey, StageStatus } from '../types'
+import type { PipelineMode, StageKey, StageStatus } from '../types'
 
 const STAGES: { key: StageKey; label: string; engine: string }[] = [
   { key: 'breakdown', label: 'Breakdown', engine: 'Gemini · ADK' },
@@ -7,7 +7,13 @@ const STAGES: { key: StageKey; label: string; engine: string }[] = [
   { key: 'report', label: 'Report', engine: 'Gemini · ADK' },
 ]
 
-export function StageRail({ stages }: { stages: Record<StageKey, StageStatus> }) {
+export function StageRail({
+  stages,
+  mode = 'clearance',
+}: {
+  stages: Record<StageKey, StageStatus>
+  mode?: PipelineMode
+}) {
   return (
     <ol className="flex items-stretch gap-2">
       {STAGES.map((s, i) => {
@@ -43,7 +49,7 @@ export function StageRail({ stages }: { stages: Record<StageKey, StageStatus> })
                     st === 'idle' ? 'text-stone-500' : 'text-stone-100',
                   ].join(' ')}
                 >
-                  {s.label}
+                  {mode === 'truestory' && s.key === 'breakdown' ? 'Claims' : s.label}
                 </span>
               </div>
               <div className="font-mono text-[9px] uppercase tracking-widest text-stone-500">

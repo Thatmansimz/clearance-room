@@ -7,6 +7,7 @@ import type {
   Report,
   StageKey,
   StageStatus,
+  TitleVerdict,
 } from './types'
 import { StageRail } from './components/StageRail'
 import { EntityCard } from './components/EntityCard'
@@ -61,6 +62,7 @@ export default function App() {
   const [results, setResults] = useState<Record<string, EntityResult>>({})
   const [report, setReport] = useState<Report | null>(null)
   const [ticker, setTicker] = useState<{ searches: number; sources: number } | null>(null)
+  const [tgVerdict, setTgVerdict] = useState<TitleVerdict | null>(null)
   const [error, setError] = useState<string | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
 
@@ -75,6 +77,7 @@ export default function App() {
         setResults({})
         setReport(null)
         setTicker(null)
+        setTgVerdict(null)
         setStages(INITIAL_STAGES)
       })
       .catch(() => setError('Backend not reachable — is the API server running?'))
@@ -239,12 +242,14 @@ export default function App() {
                 {error}
               </p>
             )}
-            {mode === 'clearance' && <TitleGuard key={title} initialTitle={title} />}
+            {mode === 'clearance' && (
+              <TitleGuard key={title} initialTitle={title} onVerdict={setTgVerdict} />
+            )}
           </section>
 
           {/* Pipeline board */}
           <section ref={boardRef}>
-            <StageRail stages={stages} />
+            <StageRail stages={stages} mode={mode} />
             {entities.length > 0 && (
               <div className="mb-3 mt-6 flex items-center justify-between">
                 <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-stone-400">
@@ -284,7 +289,12 @@ export default function App() {
         </div>
 
         {report && (
-          <ReportPanel report={report} title={title} heading={MODES[mode].reportTitle} />
+          <ReportPanel
+            report={report}
+            title={title}
+            heading={MODES[mode].reportTitle}
+            titleVerdict={tgVerdict}
+          />
         )}
       </main>
 

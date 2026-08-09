@@ -1,4 +1,5 @@
-import type { Report } from '../types'
+import type { Report, TitleVerdict } from '../types'
+import { EoBinder } from './EoBinder'
 
 const TILE_STYLES: Record<string, string> = {
   CLEAR: 'border-emerald-500/40 text-emerald-400',
@@ -10,17 +11,28 @@ export function ReportPanel({
   report,
   title,
   heading = 'FINAL CLEARANCE REPORT',
+  titleVerdict = null,
 }: {
   report: Report
   title: string
   heading?: string
+  titleVerdict?: TitleVerdict | null
 }) {
   return (
-    <section className="card-in mt-10 rounded-xl border border-amber-400/30 bg-stone-900/70 p-6">
+    <section
+      id="clearance-report"
+      className="card-in mt-10 rounded-xl border border-amber-400/30 bg-stone-900/70 p-6"
+    >
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-display text-3xl tracking-wide text-amber-400">{heading}</h2>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-stone-500">
+        <span className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-widest text-stone-500">
           {title}
+          <button
+            onClick={() => window.print()}
+            className="no-print rounded border border-stone-600 px-2 py-1 uppercase tracking-widest text-stone-300 transition hover:border-amber-400/60 hover:text-amber-400"
+          >
+            ⬇ export pdf
+          </button>
         </span>
       </div>
 
@@ -57,6 +69,8 @@ export function ReportPanel({
         </div>
       )}
       <p className="max-w-4xl text-[14px] leading-relaxed text-stone-200">{report.summary}</p>
+
+      {report.eo_checklist && <EoBinder rows={report.eo_checklist} titleVerdict={titleVerdict} />}
 
       <p className="mt-4 font-mono text-[9px] uppercase tracking-widest text-stone-600">
         breakdown: gemini via google adk · evidence: parallel search api · assessment: gemini

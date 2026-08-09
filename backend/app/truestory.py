@@ -247,9 +247,14 @@ async def run_truestory(script_text: str) -> AsyncGenerator[dict[str, Any], None
             report_agent = _adk_agent("defamation_report", TS_REPORT_INSTRUCTION,
                                       None, config.GEMINI_REPORT_MODEL)
             summary = await _run_adk(report_agent, json.dumps(assessed, indent=1))
+            from .eobinder import build_checklist
             stats = {v: sum(1 for a in assessed if a["verdict"] == v) for v in VERDICTS}
+            # Claim categories don't map to clearance rows; the binder still
+            # renders with persons_depicted fed by TRUESTORY findings.
+            binder_items = [{**a, "category": "TRUESTORY"} for a in assessed]
             await emit({"type": "report", "summary": summary.strip(),
                         "stats": stats, "items": assessed,
+                        "eo_checklist": build_checklist(binder_items),
                         "elapsed_seconds": round(time.monotonic() - t0, 1),
                         "searches": searches_fired, "sources": len(domains_seen)})
             await emit({"type": "stage", "stage": "report", "status": "done"})
