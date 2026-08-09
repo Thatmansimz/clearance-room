@@ -2,7 +2,7 @@
 
 **Every frame cleared.** A deterministic, multi-step clearance agent for film & TV scripts — built on **Gemini (Vertex AI) + Google ADK**, with the **Parallel Search API** as its research engine.
 
-> Before any script shoots, studios pay $1,500–$3,000 and wait 1–2 weeks for a **script clearance report**: every brand, real person, song, artwork, clip, and location must be researched for legal risk. ClearanceRoom does it in about a minute, with live web evidence and per-item production guidance.
+> Before any script shoots, every brand, real person, song, artwork, clip, and location must be cleared for legal risk — a **script clearance report** that runs **$1,000–$3,000 and 5–10 business days** by hand. ClearanceRoom is the fast pre-production **triage** that runs *first*: in about a minute it surfaces the landmines with live web evidence and a concrete fix, so counsel's time goes to the handful of items that actually matter. It's not a substitute for that report — or for entertainment counsel.
 
 Built for the **Agentic Cinema** hackathon — **Parallel track**.
 
@@ -18,6 +18,8 @@ Built for the **Agentic Cinema** hackathon — **Parallel track**.
 
 Findings carry **precedent cards** citing documented incidents with real dollar figures, and every run reports its own elapsed time against the $1,000–$3,000 / 5–10 business day human benchmark.
 
+> **Scope.** ClearanceRoom produces pre-production **triage** for counsel — not legal advice, and not an E&O-accepted clearance report. `CLEAR` means "no review priority identified," **not** "safe to shoot." It flags for human review, is tuned to over-flag rather than under-flag, and never decides what gets shot. Final clearance requires qualified entertainment counsel.
+
 ## How it works
 
 A fixed four-stage pipeline (orchestrated in code — deterministic by construction, not left to model whim):
@@ -25,7 +27,7 @@ A fixed four-stage pipeline (orchestrated in code — deterministic by construct
 | Stage | Engine | What happens |
 |---|---|---|
 | 1 · Breakdown | **Gemini via Google ADK** (`LlmAgent`, structured output) | Extracts every clearable entity from the screenplay with scene + usage context |
-| 2 · Research | **Parallel Search API** (`POST /v1/search`) | Deterministic fan-out: each entity gets clearance-specific research objectives; live web evidence comes back as ranked excerpts |
+| 2 · Research | **Parallel Search API** (`POST /v1/search`) | Per-entity fan-out with bounded concurrency: each entity gets clearance-specific research objectives; live web evidence comes back as top excerpts |
 | 3 · Assessment | **Gemini** (`google-genai`, JSON schema output) | Scores each entity against its evidence: CLEAR / CAUTION / BLOCKED, risk score, rationale, concrete fix |
 | 4 · Report | **Gemini via Google ADK** | Compiles the executive clearance report for the producer |
 

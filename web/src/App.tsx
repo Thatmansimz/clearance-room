@@ -64,6 +64,9 @@ export default function App() {
   const [ticker, setTicker] = useState<{ searches: number; sources: number } | null>(null)
   const [tgVerdict, setTgVerdict] = useState<TitleVerdict | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Research/assess failures the backend emits as `warning` frames. Previously
+  // unhandled, so a failed live search vanished with no signal on screen.
+  const [warnings, setWarnings] = useState<string[]>([])
   const boardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -79,6 +82,7 @@ export default function App() {
         setTicker(null)
         setTgVerdict(null)
         setStages(INITIAL_STAGES)
+        setWarnings([])
       })
       .catch(() => setError('Backend not reachable — is the API server running?'))
   }, [mode])
@@ -116,6 +120,9 @@ export default function App() {
       case 'ticker':
         setTicker({ searches: ev.searches, sources: ev.sources })
         break
+      case 'warning':
+        setWarnings((w) => (w.includes(ev.message) ? w : [...w, ev.message]))
+        break
       case 'done':
         setRunning(false)
         break
@@ -135,6 +142,7 @@ export default function App() {
     setResults({})
     setReport(null)
     setTicker(null)
+    setWarnings([])
     boardRef.current?.scrollIntoView({ behavior: 'smooth' })
 
     try {
@@ -250,6 +258,13 @@ export default function App() {
           {/* Pipeline board */}
           <section ref={boardRef}>
             <StageRail stages={stages} mode={mode} />
+            {warnings.length > 0 && (
+              <div className="mt-3 rounded border border-amber-500/40 bg-amber-950/30 p-3 font-mono text-[11px] leading-snug text-amber-300">
+                {warnings.map((w, i) => (
+                  <p key={i}>⚠ {w}</p>
+                ))}
+              </div>
+            )}
             {entities.length > 0 && (
               <div className="mb-3 mt-6 flex items-center justify-between">
                 <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-stone-400">
