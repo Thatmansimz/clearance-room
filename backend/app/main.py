@@ -4,6 +4,7 @@ In production (Cloud Run) it also serves the built frontend from STATIC_DIR.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -12,14 +13,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import config
 from .pipeline import run_pipeline
 from .titleguard import check_title
 from .truestory import run_truestory
 
-app = FastAPI(title="ClearanceRoom", version="0.1.0")
+app = FastAPI(title="ClearanceRoom", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,6 +28,62 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Cloud Run drops idle connections at ~300s and stage 1 can be slow on a
+# feature-length script. An SSE comment frame keeps the socket warm; clients
+# split on a blank line and only parse frames starting with "data: ", so
+# ": keepalive" comment frames are ignored with no client-side change.
+HEARTBEAT_SECONDS = 15.0
+
+# A public, unauthenticated endpoint that fans out to two paid APIs needs a cap.
+_run_slots = asyncio.Semaphore(config.MAX_CONCURRENT_RUNS)
+
+
+def _sse(source) -> StreamingResponse:
+    """Wrap an event async-generator as an SSE response, hardened once for every
+    streaming route: a bounded concurrency slot (fail fast when the box is busy)
+    and keepalive heartbeats so a long run can't be dropped mid-stream."""
+
+    async def stream():
+        try:
+            await asyncio.wait_for(_run_slots.acquire(), timeout=0.1)
+        except asyncio.TimeoutError:
+            busy = {"type": "error",
+                    "message": "Server busy — a run is already in progress. Try again in a moment."}
+            yield f"data: {json.dumps(busy)}\n\n"
+            return
+
+        queue: asyncio.Queue = asyncio.Queue()
+
+        async def pump() -> None:
+            try:
+                async for event in source:
+                    await queue.put(event)
+            finally:
+                await queue.put(None)
+
+        task = asyncio.create_task(pump())
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=HEARTBEAT_SECONDS)
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+                    continue
+                if event is None:
+                    break
+                yield f"data: {json.dumps(event)}\n\n"
+        finally:
+            task.cancel()
+            _run_slots.release()
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no",
+                 "Connection": "keep-alive"},
+    )
+
 
 def _script_path(filename: str) -> Path:
     here = Path(__file__).resolve()
@@ -45,7 +102,9 @@ SAMPLES = {
 
 
 class RunRequest(BaseModel):
-    script: str
+    # Cap the payload: this endpoint is public and every entity fans out to a
+    # paid search. A whole-season dump would rack up cost with no upper bound.
+    script: str = Field(min_length=1, max_length=config.MAX_SCRIPT_CHARS)
 
 
 @app.get("/api/health")
@@ -55,6 +114,17 @@ async def health() -> dict:
         "mock_gemini": config.MOCK_GEMINI,
         "mock_parallel": config.MOCK_PARALLEL,
         "model": config.GEMINI_MODEL,
+        # Stage 4 runs a different model from stages 1 and 3; report both so a
+        # dead report model is detectable from here before a demo.
+        "models": {
+            "breakdown": config.GEMINI_MODEL,
+            "assess": config.GEMINI_MODEL,
+            "report": config.GEMINI_REPORT_MODEL,
+        },
+        "limits": {
+            "max_script_chars": config.MAX_SCRIPT_CHARS,
+            "max_concurrent_runs": config.MAX_CONCURRENT_RUNS,
+        },
     }
 
 
@@ -66,28 +136,12 @@ async def sample(mode: str = "clearance") -> dict:
 
 @app.post("/api/clearance/run")
 async def run(req: RunRequest) -> StreamingResponse:
-    async def stream():
-        async for event in run_pipeline(req.script):
-            yield f"data: {json.dumps(event)}\n\n"
-
-    return StreamingResponse(
-        stream(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return _sse(run_pipeline(req.script))
 
 
 @app.post("/api/truestory/run")
 async def truestory(req: RunRequest) -> StreamingResponse:
-    async def stream():
-        async for event in run_truestory(req.script):
-            yield f"data: {json.dumps(event)}\n\n"
-
-    return StreamingResponse(
-        stream(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return _sse(run_truestory(req.script))
 
 
 class AiCheckRequest(BaseModel):
@@ -98,32 +152,16 @@ class AiCheckRequest(BaseModel):
 async def ai_check(req: AiCheckRequest) -> StreamingResponse:
     from .eobinder import run_ai_check
 
-    async def stream():
-        async for event in run_ai_check(req.usages):
-            yield f"data: {json.dumps(event)}\n\n"
-
-    return StreamingResponse(
-        stream(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return _sse(run_ai_check(req.usages))
 
 
 class TitleRequest(BaseModel):
-    title: str
+    title: str = Field(min_length=1, max_length=300)
 
 
 @app.post("/api/title/check")
 async def title_check(req: TitleRequest) -> StreamingResponse:
-    async def stream():
-        async for event in check_title(req.title):
-            yield f"data: {json.dumps(event)}\n\n"
-
-    return StreamingResponse(
-        stream(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return _sse(check_title(req.title))
 
 
 # Serve the built frontend in production (mounted last so /api/* wins).

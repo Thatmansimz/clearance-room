@@ -243,9 +243,24 @@ async def run_pipeline(script_text: str) -> AsyncGenerator[dict[str, Any], None]
                         assess_started = True
                         await emit({"type": "stage", "stage": "assess",
                                     "status": "start"})
+                    if not evidence:
+                        await emit({"type": "warning", "id": entity["id"],
+                                    "message": f"no web evidence retrieved for {entity['name']} — verdict is model prior only"})
                     await emit({"type": "entity_status", "id": entity["id"],
                                 "status": "assessing"})
-                    result = await _assess_entity(entity, evidence)
+                    try:
+                        result = await _assess_entity(entity, evidence)
+                    except Exception as exc:  # assessment failure degrades ONE item, not the run
+                        await emit({"type": "warning", "id": entity["id"],
+                                    "message": f"assessment failed: {exc}"})
+                        result = {
+                            "verdict": "CAUTION",
+                            "risk_score": 50,
+                            "rationale": (f"Automated assessment did not complete "
+                                          f"({type(exc).__name__}). This item is UNREVIEWED — "
+                                          f"treat as not cleared and route to counsel."),
+                            "recommendation": "Re-run this item, or send it to counsel before locking the draft.",
+                        }
                     record = {**entity, **result, "sources": [
                         {"url": ev["url"], "title": ev["title"]} for ev in evidence
                     ]}
@@ -258,7 +273,22 @@ async def run_pipeline(script_text: str) -> AsyncGenerator[dict[str, Any], None]
                                 **result, "sources": record["sources"],
                                 "precedent": record.get("precedent")})
 
-            await asyncio.gather(*(investigate(e) for e in entities))
+            outcomes = await asyncio.gather(
+                *(investigate(e) for e in entities), return_exceptions=True
+            )
+            # Second layer of defence: if investigate() itself crashed (e.g. an
+            # emit path), the entity must still surface rather than vanish and
+            # the remaining entities must not be taken down with it.
+            for entity, outcome in zip(entities, outcomes):
+                if isinstance(outcome, BaseException) and not any(a["id"] == entity["id"] for a in assessed):
+                    result = {
+                        "verdict": "CAUTION", "risk_score": 50,
+                        "rationale": f"Processing error ({type(outcome).__name__}); item is UNREVIEWED.",
+                        "recommendation": "Re-run this item or route it to counsel.",
+                    }
+                    assessed.append({**entity, **result, "sources": []})
+                    await emit({"type": "entity_result", "id": entity["id"], **result,
+                                "sources": [], "precedent": None})
             await emit({"type": "stage", "stage": "research", "status": "done"})
             await emit({"type": "stage", "stage": "assess", "status": "done"})
 
