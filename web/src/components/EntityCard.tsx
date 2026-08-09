@@ -1,5 +1,6 @@
 import type { Entity, EntityResult, EntityStatus } from '../types'
 import { safeHostname } from '../lib/url'
+import { Dossier } from './Dossier'
 
 const CATEGORY_ICONS: Record<string, string> = {
   BRAND: '🏷',
@@ -121,10 +122,18 @@ export function EntityCard({
                 </a>
               ))}
             </div>
-            <span className="font-mono text-[10px] text-stone-500">
+            <span className="font-mono text-[10px] text-stone-400">
               risk {result.risk_score}
             </span>
           </div>
+          {/* Depth on demand: only flagged items are worth a deep-research run. */}
+          {result.verdict !== 'CLEAR' && (
+            <Dossier
+              name={entity.name}
+              category={entity.category}
+              context={entity.context}
+            />
+          )}
         </div>
       )}
     </article>

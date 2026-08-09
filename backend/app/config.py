@@ -29,6 +29,11 @@ os.environ.setdefault("GOOGLE_CLOUD_LOCATION", GOOGLE_CLOUD_LOCATION)
 PARALLEL_API_KEY = os.getenv("PARALLEL_API_KEY", "")
 PARALLEL_API_URL = os.getenv("PARALLEL_API_URL", "https://api.parallel.ai/v1/search")
 PARALLEL_MODE = os.getenv("PARALLEL_MODE", "advanced")  # "advanced" | "turbo"
+# Task API (Deep Dossier): deeper multi-hop research with per-field citations,
+# reasoning, and confidence. "core" balances depth against demo-friendly latency.
+PARALLEL_TASK_PROCESSOR = os.getenv("PARALLEL_TASK_PROCESSOR", "core")
+DOSSIER_POLL_SECONDS = float(os.getenv("DOSSIER_POLL_SECONDS", "5"))
+DOSSIER_TIMEOUT_SECONDS = float(os.getenv("DOSSIER_TIMEOUT_SECONDS", "300"))
 
 # Pipeline tuning
 RESEARCH_CONCURRENCY = int(os.getenv("RESEARCH_CONCURRENCY", "4"))

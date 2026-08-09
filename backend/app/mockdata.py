@@ -160,6 +160,26 @@ async def mock_report(assessed: list[dict[str, Any]]) -> str:
     return MOCK_REPORT
 
 
+async def mock_dossier(entity: dict[str, Any]):
+    """Canned Deep Dossier so the Task API lane demos without keys."""
+    yield {"type": "dossier_stage", "status": "submitted", "processor": "core",
+           "item": entity["name"]}
+    await asyncio.sleep(1.0)
+    yield {"type": "dossier_stage", "status": "running", "run_id": "trun_mock"}
+    for i in range(3):
+        await asyncio.sleep(1.2)
+        yield {"type": "dossier_tick", "status": "running", "elapsed": (i + 1) * 5}
+    yield {
+        "type": "dossier_result", "item": entity["name"], "source_count": 6,
+        "fields": [
+            {"field": "rights_holders", "label": "rights holders",
+             "value": "Mock dossier — enable live mode for real deep research.",
+             "confidence": "medium", "reasoning": "Mock reasoning.",
+             "citations": [{"title": "Mock source", "url": "https://example.com"}]},
+        ],
+    }
+
+
 async def mock_title_check(title: str):
     """Canned TitleGuard flow so the UI demos without keys."""
     yield {"type": "tg_stage", "stage": "sweep", "status": "start"}

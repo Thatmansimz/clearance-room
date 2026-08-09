@@ -75,6 +75,21 @@ export type AiCheckEvent =
 
 export type PipelineMode = 'clearance' | 'truestory'
 
+export interface DossierField {
+  field: string
+  label: string
+  value: string
+  confidence: 'high' | 'medium' | 'low' | 'unknown'
+  reasoning: string
+  citations: Source[]
+}
+
+export type DossierEvent =
+  | { type: 'dossier_stage'; status: string; processor?: string; run_id?: string; item?: string }
+  | { type: 'dossier_tick'; status: string; elapsed: number }
+  | { type: 'dossier_result'; item: string; fields: DossierField[]; source_count: number }
+  | { type: 'error'; message: string }
+
 export interface TitleConflict {
   name: string
   medium: string

@@ -145,6 +145,19 @@ async def truestory(req: RunRequest) -> StreamingResponse:
     return _sse(run_truestory(req.script))
 
 
+class DossierRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=300)
+    category: str = Field(min_length=1, max_length=40)
+    context: str = Field(min_length=1, max_length=1000)
+
+
+@app.post("/api/dossier")
+async def dossier(req: DossierRequest) -> StreamingResponse:
+    from .dossier import run_dossier
+
+    return _sse(run_dossier(req.model_dump()))
+
+
 class AiCheckRequest(BaseModel):
     usages: list[str] = Field(max_length=16)
 
