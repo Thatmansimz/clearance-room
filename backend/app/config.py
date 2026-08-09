@@ -33,6 +33,10 @@ PARALLEL_MODE = os.getenv("PARALLEL_MODE", "advanced")  # "advanced" | "turbo"
 # Pipeline tuning
 RESEARCH_CONCURRENCY = int(os.getenv("RESEARCH_CONCURRENCY", "4"))
 
+# Abuse guards for public, unauthenticated, paid-API-backed endpoints.
+MAX_SCRIPT_CHARS = int(os.getenv("MAX_SCRIPT_CHARS", "120000"))
+MAX_CONCURRENT_RUNS = int(os.getenv("MAX_CONCURRENT_RUNS", "3"))
+
 # Per-service mock flags: MOCK_MODE=1 forces full mock; otherwise each service
 # goes live as soon as its credentials are present.
 MOCK_GEMINI = MOCK_MODE or not GOOGLE_CLOUD_PROJECT
