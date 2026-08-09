@@ -31,7 +31,10 @@ PARALLEL_API_URL = os.getenv("PARALLEL_API_URL", "https://api.parallel.ai/v1/sea
 PARALLEL_MODE = os.getenv("PARALLEL_MODE", "advanced")  # "advanced" | "turbo"
 # Task API (Deep Dossier): deeper multi-hop research with per-field citations,
 # reasoning, and confidence. "core" balances depth against demo-friendly latency.
-PARALLEL_TASK_PROCESSOR = os.getenv("PARALLEL_TASK_PROCESSOR", "core")
+# "-fast" variants are 2-5x quicker at identical pricing (measured: core-fast
+# 28s vs core 150s on the same dossier), which is the difference between a
+# dossier you can show on camera and one you have to cut away from.
+PARALLEL_TASK_PROCESSOR = os.getenv("PARALLEL_TASK_PROCESSOR", "core-fast")
 DOSSIER_POLL_SECONDS = float(os.getenv("DOSSIER_POLL_SECONDS", "5"))
 DOSSIER_TIMEOUT_SECONDS = float(os.getenv("DOSSIER_TIMEOUT_SECONDS", "300"))
 
