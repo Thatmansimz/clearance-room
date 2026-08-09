@@ -87,6 +87,33 @@ ClearanceRoom. Built on Gemini and Parallel. Every frame cleared."
 
 ---
 
+## Performance notes
+
+Stage training is an advantage here — most demo videos are flat and rushed. But
+the failure mode for a trained performer on a technical demo is *projecting*.
+Judges are watching alone, on headphones, evaluating a product. Play the room
+you're actually in.
+
+- **Play it as confiding, not presenting.** Closest analogue is a director's
+  commentary track: someone who knows the material telling you what to notice.
+  Aim your energy at one person across a table, not a house.
+- **Underplay the biggest numbers.** "A hundred and seventy million dollars"
+  lands hardest said flatly. The figure is doing the work; selling it competes
+  with it. Same with "a judge blocked the finished film" — state it, then stop.
+- **Let the silences run during live research.** When the ticker is climbing,
+  say nothing for three or four seconds. Dead air over visible progress reads as
+  confidence. Filling it reads as nerves.
+- **Two beats to hit precisely.** The Blue Comet reveal ("a model working from
+  memory calls that name fictional — live research calls it a lawsuit") and the
+  final line. Land the first half, breathe, then the turn.
+- **Diction over speed.** ~400 words in three minutes is a relaxed pace by
+  design. Resist compressing to add more; anything cut can live in the README.
+- **Don't apologize for latency, and don't narrate the UI.** Never "as you can
+  see here" or "this'll just take a second." Say what it *means* while it works.
+- **Record VO separately from the screen capture.** One clean pass over the cut,
+  standing up, off a mic away from the laptop fans.
+- **Smile on the last line.** It's audible.
+
 ## Recording run-sheet
 
 Pre-flight (do all of these before rolling):
