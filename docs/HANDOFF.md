@@ -29,6 +29,42 @@ live AI-usage insurability intake). 15 pytest cases pass (`MOCK_MODE=1
 - Local: `clearance-api` on 8801, `clearance-web` on 5177 (see ~/.claude/launch.json).
 - Deploy command with all required flags: [`docs/DEPLOY.md`](DEPLOY.md).
 
+## Parallel, used three ways (the "Tournament of Champions" plate)
+
+The partner platform is much larger than the Search API. Verified available on
+this account: Search, Extract, Task (+ Task Groups), Responses, Chat, Monitor,
+FindAll, Entity Search, and two MCP servers.
+
+1. **SCREEN — Search API** *(shipped)*. Breadth: one objective per entity,
+   whole script graded in ~60s. Next upgrade: `advanced_settings.source_policy.
+   include_domains = ["uspto.gov", ".gov", "ascap.com", "bmi.com"]` to pin
+   evidence to authoritative registries (~1 hour, and the real fix for the
+   Casablanca-class relevance problem).
+2. **ADJUDICATE — Task API** *(shipped, `backend/app/dossier.py`)*. Depth on
+   demand: structured output where every field carries citations + reasoning +
+   **confidence**. Processor `core-fast` — measured 28s vs 150s for `core` at
+   identical pricing. Verified in prod at 37s.
+3. **CURE — Extract API** *(not built)*. Close the loop: Gemini proposes a
+   substitution, Extract pulls the authoritative record verbatim to prove the
+   substitute is itself clear. This is the "FIX IT" button the red-team said the
+   winning entry would have. ~a day.
+4. *(optional 4th)* **Monitor API** — snapshot monitors over completed Task runs
+   for clearance decay ("your cleared song's catalog was just sold").
+
+**Demo gold, unbuilt:** Task API SSE events (`GET /v1/tasks/runs/{id}/events`,
+`enable_events: true`) expose the agent's OWN search queries, prefixed
+`Objective:`. Streaming those into the UI shows a research plan executing live —
+the single strongest answer to "where's the agent?".
+
+## Open decisions for Michael (do not action without his call)
+
+- **`docs/AUDIT.md` is public** and reads as a 79-finding prosecution of our own
+  product. Recommendation: rewrite as a fixed/open changelog rather than delete —
+  the rigor is a selling point, the hit-list framing is not.
+- **Commit trailers say `Co-Authored-By: Claude`.** The project itself uses only
+  Google AI (compliant), but the trailers are visible in public history on a
+  Google-sponsored entry. Rewriting published history is destructive — his call.
+
 ## Next actions, in priority order
 
 1. **Record the 3-minute demo video.** Full shot list, VO script, run-sheet, and
