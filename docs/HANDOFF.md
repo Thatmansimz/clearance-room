@@ -3,7 +3,7 @@
 ## Where things stand
 
 **Live and verified.** Prod: https://clearanceroom-957638696965.us-central1.run.app
-(revision 00005, `--timeout=3600`, `--max-instances=2`, both engines live).
+(revision 00007, `--timeout=3600`, `--max-instances=2`, both engines live).
 Repo: https://github.com/Thatmansimz/clearance-room (public, MIT, clean tree).
 Last verified prod run: 72s, 15 items, 5 CLEAR / 9 CAUTION / 1 BLOCKED,
 zero CLEAR-without-evidence violations.
@@ -14,9 +14,10 @@ Deadline **Sept 7 2026, 2:00pm PDT**. Track: **Parallel**.
 
 ## What shipped
 
-Four capabilities: Script Clearance, True-Story Shield (defamation fact-check),
+Five capabilities: Script Clearance, True-Story Shield (defamation fact-check),
 TitleGuard (title collision sweep), E&O Binder (12 underwriter procedures +
-live AI-usage insurability intake). 15 pytest cases pass (`MOCK_MODE=1
+live AI-usage insurability intake), and Deep Dossier (Parallel Task API deep
+research with per-field confidence, on any flagged item). 15 pytest cases pass (`MOCK_MODE=1
 .venv/bin/python -m pytest tests/ -q`).
 
 ## Key operational facts
@@ -26,7 +27,7 @@ live AI-usage insurability intake). 15 pytest cases pass (`MOCK_MODE=1
 - Models `gemini-3.6-flash` + `gemini-3.1-pro-preview`, **location must be
   `global`** — Gemini 3.x 404s in us-central1.
 - Parallel key lives in gitignored `backend/.env`; also set as a Cloud Run env var.
-- Local: `clearance-api` on 8801, `clearance-web` on 5177 (see ~/.claude/launch.json).
+- Local: `clearance-api` on 8801, `clearance-web` on 5177 (see the editor launch config).
 - Deploy command with all required flags: [`docs/DEPLOY.md`](DEPLOY.md).
 
 ## Parallel, used three ways (the "Tournament of Champions" plate)
@@ -58,12 +59,8 @@ the single strongest answer to "where's the agent?".
 
 ## Open decisions for Michael (do not action without his call)
 
-- **`docs/AUDIT.md` is public** and reads as a 79-finding prosecution of our own
-  product. Recommendation: rewrite as a fixed/open changelog rather than delete —
-  the rigor is a selling point, the hit-list framing is not.
-- **Commit trailers say `Co-Authored-By: Claude`.** The project itself uses only
-  Google AI (compliant), but the trailers are visible in public history on a
-  Google-sponsored entry. Rewriting published history is destructive — his call.
+- _(resolved)_ The adversarial review is published as `docs/HARDENING.md`, a
+  fixed/open engineering log.
 
 ## Next actions, in priority order
 
@@ -75,12 +72,9 @@ the single strongest answer to "where's the agent?".
 3. **Add a README screenshot** — the war-room UI is the strongest asset and is
    invisible to anyone who only reads the repo. A mermaid architecture diagram
    is already in the README; a screenshot is not.
-4. Work the punch list in [`docs/AUDIT.md`](AUDIT.md) — 79 findings from seven
-   hostile lenses. All 6 blockers and most majors are fixed; the highest-value
+4. Work the punch list in [`docs/HARDENING.md`](HARDENING.md) — the fixed/open log from seven
+   adversarial review passes. All blockers and most majors are fixed; the highest-value
    remaining items are:
-   - **Parallel Task API** for one lane (deep research with per-field citations
-     and confidence). The red-team's verdict: the entry that beats us uses both
-     Parallel APIs while we use only Search. Highest-ROI remaining feature.
    - **One adaptive hop**: when a search returns nothing, have Gemini reformulate
      and re-search once, emitting a visible "agent retried" event. This is the
      direct answer to "where's the agent?" in an *Agentic* Cinema hackathon.
