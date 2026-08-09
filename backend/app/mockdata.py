@@ -131,8 +131,8 @@ MOCK_REPORT = (
     "dominated by famous-brand set dressing and wardrobe (Coca-Cola, Nike, Rolex, Elvis "
     "poster) — standard greeking and wardrobe swaps resolve all four without story impact. "
     "Recommend a revised draft before scheduling: total exposure drops from an estimated "
-    "$150k+ in licensing to near zero with substitutions, and the script becomes fully "
-    "insurable for E&O at standard rates."
+    "$150k+ in licensing to near zero with substitutions, and the flagged obstacles to "
+    "E&O review are removed — counsel sign-off still required."
 )
 
 

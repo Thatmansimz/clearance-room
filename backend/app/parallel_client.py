@@ -99,12 +99,37 @@ async def research_entity(entity: dict[str, Any]) -> list[dict[str, Any]]:
         f"Research legal clearance considerations for depicting '{name}' in a film.",
     )
 
+    # Bare entity names collide badly ("Casablanca" returns ceiling-fan
+    # trademarks), so every query carries the category context stage 1 derived.
+    CATEGORY_HINT = {
+        "BRAND": "brand trademark owner",
+        "PERSON": "person biography",
+        "MUSIC": "song music rights",
+        "ARTWORK": "artwork copyright artist",
+        "LOCATION": "building location filming",
+        "MEDIA": "film TV production rights holder",
+        "ORGANIZATION": "business company name",
+    }
+    hint = CATEGORY_HINT.get(category, "")
+
     queries = [
-        f"{name} trademark status",
-        f"{name} film TV clearance licensing",
-        f"{name} lawsuit depiction film",
+        f"{name} {hint} trademark status",
+        f"{name} {hint} film TV clearance licensing",
+        f"{name} {hint} lawsuit depiction film",
     ]
-    if category == "MUSIC":
+    if category == "MEDIA":
+        queries = [
+            f"{name} film clip licensing rights holder studio",
+            f"{name} film copyright owner distributor",
+            f"{name} using clip in another film license cost",
+        ]
+    elif category == "ARTWORK":
+        queries = [
+            f"{name} artwork copyright rights holder",
+            f"{name} artwork use in film license permission",
+            f"{name} artist estate licensing",
+        ]
+    elif category == "MUSIC":
         queries = [
             f"{name} song publishing rights holder",
             f"{name} sync license film cost",

@@ -29,10 +29,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Cloud Run drops idle connections at ~300s and stage 1 can be slow on a
-# feature-length script. An SSE comment frame keeps the socket warm; clients
-# split on a blank line and only parse frames starting with "data: ", so
-# ": keepalive" comment frames are ignored with no client-side change.
+# Cloud Run's request timeout covers the TOTAL duration of a streaming response,
+# so the deploy must set --timeout well above the longest run (see docs/DEPLOY.md);
+# heartbeats do not extend it. These frames instead keep proxies and browsers from
+# treating a quiet stretch as a dead connection. Clients split on a blank line and
+# only parse frames starting with "data: ", so comment frames are ignored.
 HEARTBEAT_SECONDS = 15.0
 
 # A public, unauthenticated endpoint that fans out to two paid APIs needs a cap.
@@ -145,7 +146,7 @@ async def truestory(req: RunRequest) -> StreamingResponse:
 
 
 class AiCheckRequest(BaseModel):
-    usages: list[str]
+    usages: list[str] = Field(max_length=16)
 
 
 @app.post("/api/eo/ai-check")

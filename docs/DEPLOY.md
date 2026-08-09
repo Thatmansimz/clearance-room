@@ -48,7 +48,9 @@ gcloud run deploy clearanceroom \
   --source . \
   --region=us-central1 \
   --min-instances=1 \
+  --max-instances=2 \
   --cpu-boost \
+  --timeout=3600 \
   --allow-unauthenticated \
   --set-env-vars=MOCK_MODE=0,GOOGLE_CLOUD_PROJECT=<PROJECT_ID>,GEMINI_MODEL=gemini-3.6-flash,GEMINI_REPORT_MODEL=gemini-3.1-pro-preview,GOOGLE_GENAI_USE_VERTEXAI=TRUE,STATIC_DIR=/app/static
 ```

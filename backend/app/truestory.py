@@ -29,7 +29,13 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, Field
 
 from . import config, parallel_client
-from .pipeline import PRECEDENTS, VERDICTS, _adk_agent, _run_adk
+from .pipeline import (
+    PRECEDENTS,
+    VERDICTS,
+    _adk_agent,
+    _fallback_summary,
+    _run_adk_retrying,
+)
 
 CLAIM_CATEGORIES = (
     "CRIMINAL", "PROFESSIONAL", "FINANCIAL", "RELATIONSHIP",
@@ -146,6 +152,7 @@ async def _assess_claim(claim: dict[str, Any], evidence: list[dict[str, Any]]) -
         config=gt.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=ClaimVerdict,
+            temperature=0.0,
         ),
     )
     result = ClaimVerdict.model_validate_json(resp.text).model_dump()
@@ -175,7 +182,7 @@ async def run_truestory(script_text: str) -> AsyncGenerator[dict[str, Any], None
             await emit({"type": "stage", "stage": "breakdown", "status": "start"})
             agent = _adk_agent("claim_extraction", CLAIMS_INSTRUCTION,
                                ClaimSheet, config.GEMINI_MODEL)
-            raw = await _run_adk(agent, script_text)
+            raw = await _run_adk_retrying(agent, script_text)
             parsed = ClaimSheet.model_validate_json(raw)
             claims = []
             for i, c in enumerate(parsed.claims):
@@ -225,7 +232,19 @@ async def run_truestory(script_text: str) -> AsyncGenerator[dict[str, Any], None
                                     "status": "start"})
                     await emit({"type": "entity_status", "id": claim["id"],
                                 "status": "assessing"})
-                    result = await _assess_claim(claim, evidence)
+                    try:
+                        result = await _assess_claim(claim, evidence)
+                    except Exception as exc:
+                        # One flaky assessment must not abort a run that has
+                        # already paid for every other claim's research.
+                        await emit({"type": "warning", "id": claim["id"],
+                                    "message": f"assessment failed: {exc}"})
+                        result = {
+                            "verdict": "CAUTION", "risk_score": 50,
+                            "rationale": "Automated assessment failed for this claim; "
+                                         "it was not reviewed and needs manual counsel review.",
+                            "recommendation": "Re-run this claim or review it manually.",
+                        }
                     record = {**claim, **result, "sources": [
                         {"url": ev["url"], "title": ev["title"]} for ev in evidence
                     ]}
@@ -236,7 +255,21 @@ async def run_truestory(script_text: str) -> AsyncGenerator[dict[str, Any], None
                                 **result, "sources": record["sources"],
                                 "precedent": record.get("precedent")})
 
-            await asyncio.gather(*(investigate(c) for c in claims))
+            await asyncio.gather(*(investigate(c) for c in claims),
+                                 return_exceptions=True)
+            # Any claim whose whole chain died still gets a row — a silently
+            # missing claim is worse than a flagged unreviewed one.
+            done_ids = {a["id"] for a in assessed}
+            for claim in claims:
+                if claim["id"] not in done_ids:
+                    fallback = {
+                        "verdict": "CAUTION", "risk_score": 50,
+                        "rationale": "This claim could not be processed and was not reviewed.",
+                        "recommendation": "Review manually before shooting.",
+                    }
+                    assessed.append({**claim, **fallback, "sources": []})
+                    await emit({"type": "entity_result", "id": claim["id"],
+                                **fallback, "sources": [], "precedent": None})
             await emit({"type": "stage", "stage": "research", "status": "done"})
             await emit({"type": "stage", "stage": "assess", "status": "done"})
 
@@ -246,7 +279,10 @@ async def run_truestory(script_text: str) -> AsyncGenerator[dict[str, Any], None
             assessed.sort(key=lambda a: (order.get(a["verdict"], 3), -a["risk_score"]))
             report_agent = _adk_agent("defamation_report", TS_REPORT_INSTRUCTION,
                                       None, config.GEMINI_REPORT_MODEL)
-            summary = await _run_adk(report_agent, json.dumps(assessed, indent=1))
+            try:
+                summary = await _run_adk_retrying(report_agent, json.dumps(assessed, indent=1))
+            except Exception:
+                summary = _fallback_summary(assessed)
             from .eobinder import build_checklist
             stats = {v: sum(1 for a in assessed if a["verdict"] == v) for v in VERDICTS}
             # Claim categories don't map to clearance rows; the binder still

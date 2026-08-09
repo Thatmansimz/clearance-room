@@ -75,7 +75,7 @@ export function TitleGuard({
         <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-stone-400">
           🛡 titleguard — working title check
         </h2>
-        <span className="font-mono text-[9px] uppercase tracking-widest text-stone-600">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-stone-400">
           registered marks + common-law web sweep
         </span>
       </div>
@@ -165,7 +165,7 @@ export function TitleGuard({
 
           {alternates.length > 0 && (
             <div className="mt-4">
-              <p className="mb-2 font-mono text-[9px] uppercase tracking-widest text-stone-500">
+              <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-stone-400">
                 cleared alternates — each screened live
               </p>
               <div className="flex flex-wrap gap-2">

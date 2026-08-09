@@ -149,7 +149,9 @@ give the cheapest cure). Ground guidance in the evidence."""
 
 
 async def run_ai_check(usage_ids: list[str]) -> AsyncGenerator[dict[str, Any], None]:
-    usages = [(u, AI_USAGES[u]) for u in usage_ids if u in AI_USAGES]
+    # Dedupe before fanning out: this endpoint is public and every usage costs a
+    # paid search, so a repeated id must not multiply into billed work.
+    usages = [(u, AI_USAGES[u]) for u in dict.fromkeys(usage_ids) if u in AI_USAGES]
     if not usages:
         yield {"type": "ai_done"}
         return

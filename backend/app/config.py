@@ -32,6 +32,9 @@ PARALLEL_MODE = os.getenv("PARALLEL_MODE", "advanced")  # "advanced" | "turbo"
 
 # Pipeline tuning
 RESEARCH_CONCURRENCY = int(os.getenv("RESEARCH_CONCURRENCY", "4"))
+# Every entity costs a paid search, so a single run's fan-out is bounded even if
+# the breakdown stage returns hundreds of items from a feature-length script.
+MAX_ENTITIES_PER_RUN = int(os.getenv("MAX_ENTITIES_PER_RUN", "60"))
 
 # Abuse guards for public, unauthenticated, paid-API-backed endpoints.
 MAX_SCRIPT_CHARS = int(os.getenv("MAX_SCRIPT_CHARS", "120000"))

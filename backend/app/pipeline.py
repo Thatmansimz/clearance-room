@@ -46,16 +46,23 @@ PRECEDENTS: dict[str, dict[str, str]] = {
         "url": "https://www.filmindependent.org/blog/8-keys-to-successfully-delivering-your-film-this-festival-season/",
     },
     "ORGANIZATION": {
-        "case": "A YouTube series' common-law title rights won an injunction blocking T.I.'s finished film",
-        "url": "https://www.billboard.com/pro/ti-movie-title-lawsuit-rapper-situationships-judge/",
+        "case": "E&O applications require a full cast clearance check on every character and "
+                "business name — including invented ones that collide with a real business",
+        "url": "https://kellyinsurancegroup.com/film-production-television-producers-errors-omissions-clearance-procedures/",
     },
     "BRAND": {
-        "case": "E&O underwriters require brand clearance before any distributor will release",
-        "url": "https://www.frontrowinsurance.com/errors-omissions-insurance-101",
+        "case": "Underwriters require distinctive products and logos to be cleared or "
+                "greeked (swapped for a fictional brand) before a distributor will release",
+        "url": "https://asset.trvstatic.com/download/assets/ee-eo-03.doc/164e06cc63ca11eeb95a06b700163137",
     },
     "LOCATION": {
-        "case": "Unresolved location/design-mark issues are E&O flags that stall distribution",
-        "url": "https://www.frontrowinsurance.com/errors-omissions-insurance-101",
+        "case": "Written releases are required for distinctive locations and buildings; "
+                "only non-distinctive background is exempt",
+        "url": "https://asset.trvstatic.com/download/assets/ee-eo-03.doc/164e06cc63ca11eeb95a06b700163137",
+    },
+    "TITLE": {
+        "case": "A YouTube series' common-law title rights won an injunction blocking T.I.'s finished film",
+        "url": "https://www.billboard.com/pro/ti-movie-title-lawsuit-rapper-situationships-judge/",
     },
 }
 
@@ -103,11 +110,17 @@ SCENE: {scene}
 EVIDENCE:
 {evidence}
 
+Before grading, characterize the DEPICTION from the usage context above:
+neutral, negative, or disparaging. A brand shown as defective, criminal,
+counterfeit, or stolen is a tarnishment risk and can never be CLEAR on the
+grounds that the appearance is "incidental".
+
 Verdicts: CLEAR (customary/incidental use, no license needed), CAUTION (usable
 with mitigation — greeking, wardrobe swap, counsel review), BLOCKED (do not shoot
 as written without a license or rewrite). Usage context matters as much as the
 item itself: disparaging or featured uses score higher risk than incidental ones.
-Ground your rationale in the evidence provided."""
+Ground your rationale in the evidence provided, and gloss any industry term you
+use (e.g. "greek the sign (swap it for a fictional brand)")."""
 
 REPORT_INSTRUCTION = """You are the head of business & legal affairs at a film studio.
 You will receive a JSON array of clearance assessments for one screenplay. Write a
@@ -121,12 +134,16 @@ followed. Plain prose, no lists, studio voice."""
 
 def _adk_agent(name: str, instruction: str, output_schema: type[BaseModel] | None, model: str):
     from google.adk.agents import LlmAgent
+    from google.genai import types as gt
 
     return LlmAgent(
         name=name,
         model=model,
         instruction=instruction,
         output_schema=output_schema,
+        # Clearance is a legal workflow: the same script must grade the same way
+        # twice. temperature=0 is what lets us call the whole pipeline reproducible.
+        generate_content_config=gt.GenerateContentConfig(temperature=0.0),
         disallow_transfer_to_parent=True,
         disallow_transfer_to_peers=True,
     )
@@ -152,6 +169,36 @@ async def _run_adk(agent, message: str) -> str:
     return final
 
 
+async def _run_adk_retrying(agent, message: str, attempts: int = 2) -> str:
+    """Stage 1 and stage 4 are single points of failure for a whole run — a
+    transient Vertex error there throws away every paid search. Retry once."""
+    last: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            return await _run_adk(agent, message)
+        except Exception as exc:
+            last = exc
+            if attempt < attempts - 1:
+                await asyncio.sleep(1.5)
+    raise last  # type: ignore[misc]
+
+
+def _fallback_summary(assessed: list[dict[str, Any]]) -> str:
+    """Deterministic summary used when the report model is unavailable, so a
+    completed run still produces a usable document."""
+    counts = {v: sum(1 for a in assessed if a["verdict"] == v) for v in VERDICTS}
+    blocked = [a["name"] for a in assessed if a["verdict"] == "BLOCKED"]
+    lead = (
+        f"{len(assessed)} items were researched and graded: {counts['BLOCKED']} blocked, "
+        f"{counts['CAUTION']} caution, {counts['CLEAR']} clear."
+    )
+    if blocked:
+        lead += " Blocked items requiring a license or rewrite before photography: " \
+                + ", ".join(blocked[:8]) + "."
+    return lead + " Per-item rationales and sources are listed below. (Executive " \
+                  "summary generation was unavailable for this run.)"
+
+
 # ------------------------------------------------------------- stage: assess
 
 async def _assess_entity(entity: dict[str, Any], evidence: list[dict[str, Any]]) -> dict[str, Any]:
@@ -173,12 +220,21 @@ async def _assess_entity(entity: dict[str, Any], evidence: list[dict[str, Any]])
         config=gt.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=Assessment,
+            temperature=0.0,
         ),
     )
     result = Assessment.model_validate_json(resp.text).model_dump()
     result["verdict"] = result["verdict"].upper()
     if result["verdict"] not in VERDICTS:
         result["verdict"] = "CAUTION"
+    # A green light must be earned by evidence. With no sources the verdict is
+    # model prior only, so cap it — the tool over-flags rather than under-flags.
+    if not evidence and result["verdict"] == "CLEAR":
+        result["verdict"] = "CAUTION"
+        result["rationale"] = (
+            "No web evidence was retrieved for this item, so it cannot be cleared "
+            "on the record. " + result["rationale"]
+        )
     return result
 
 
@@ -202,12 +258,17 @@ async def run_pipeline(script_text: str) -> AsyncGenerator[dict[str, Any], None]
             else:
                 agent = _adk_agent("script_breakdown", BREAKDOWN_INSTRUCTION,
                                    Breakdown, config.GEMINI_MODEL)
-                raw = await _run_adk(agent, script_text)
+                raw = await _run_adk_retrying(agent, script_text)
                 parsed = Breakdown.model_validate_json(raw)
                 entities = [
                     {"id": f"e{i+1}", **e.model_dump()}
                     for i, e in enumerate(parsed.entities)
                 ]
+            if len(entities) > config.MAX_ENTITIES_PER_RUN:
+                await emit({"type": "warning", "id": "",
+                            "message": f"Script produced {len(entities)} items; researching "
+                                       f"the first {config.MAX_ENTITIES_PER_RUN}."})
+                entities = entities[:config.MAX_ENTITIES_PER_RUN]
             for e in entities:
                 await emit({"type": "entity_found", "entity": e})
             await emit({"type": "stage", "stage": "breakdown", "status": "done",
@@ -301,7 +362,11 @@ async def run_pipeline(script_text: str) -> AsyncGenerator[dict[str, Any], None]
             else:
                 agent = _adk_agent("clearance_report", REPORT_INSTRUCTION,
                                    None, config.GEMINI_REPORT_MODEL)
-                summary = await _run_adk(agent, json.dumps(assessed, indent=1))
+                try:
+                    summary = await _run_adk_retrying(agent, json.dumps(assessed, indent=1))
+                except Exception:
+                    # Never throw away a completed run over the summary stage.
+                    summary = _fallback_summary(assessed)
             from .eobinder import build_checklist
             stats = {v: sum(1 for a in assessed if a["verdict"] == v) for v in VERDICTS}
             await emit({"type": "report", "summary": summary.strip(),

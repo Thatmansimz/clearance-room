@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { AiCheckEvent, AiResult, EoRow, TitleVerdict, Verdict } from '../types'
 import { streamSSE } from '../lib/stream'
+import { safeHostname } from '../lib/url'
 
 const AI_USAGES: { id: string; label: string }[] = [
   { id: 'ai_voice', label: 'AI voice / narration' },
@@ -96,7 +97,7 @@ export function EoBinder({
         <h3 className="font-display text-2xl tracking-wide text-stone-100">
           E&amp;O BINDER <span className="text-stone-500">· underwriter checklist</span>
         </h3>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-stone-500">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-stone-400">
           {covered}/{actionable} procedures clear · no E&amp;O, no distribution{' '}
           <a
             href="https://www.frontrowinsurance.com/errors-omissions-insurance-101"
@@ -129,7 +130,7 @@ export function EoBinder({
                     req
                   </a>
                 </div>
-                <p className="text-[11px] leading-snug text-stone-500">{row.note}</p>
+                <p className="text-[11px] leading-snug text-stone-400">{row.note}</p>
                 {row.findings.length > 0 && (
                   <p className="mt-0.5 text-[11px] leading-snug">
                     {row.findings.slice(0, 4).map((f, j) => (
@@ -157,18 +158,18 @@ export function EoBinder({
         })}
       </ol>
 
-      {/* AI-usage intake */}
-      <div className="no-print mt-4 rounded-lg border border-stone-800 bg-stone-950/50 p-4">
+      {/* AI-usage intake — the results print, only the controls are screen-only */}
+      <div className="mt-4 rounded-lg border border-stone-800 bg-stone-950/50 p-4">
         <div className="mb-2 flex items-center justify-between">
           <h4 className="font-mono text-[10px] uppercase tracking-[0.2em] text-stone-400">
-            🤖 ai-usage intake — 2026 policies carry ai exclusions
+            🤖 ai-usage intake — carrier exclusion language researched live via parallel
           </h4>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="no-print flex flex-wrap items-center gap-2">
           {AI_USAGES.map((u) => (
             <label
               key={u.id}
-              className={`flex cursor-pointer items-center gap-1.5 rounded border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wide transition ${
+              className={`flex cursor-pointer items-center gap-1.5 rounded border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wide transition focus-within:ring-2 focus-within:ring-amber-400 ${
                 checked.has(u.id)
                   ? 'border-amber-400/60 bg-amber-400/10 text-amber-300'
                   : 'border-stone-700 text-stone-400 hover:border-stone-500'
@@ -176,7 +177,7 @@ export function EoBinder({
             >
               <input
                 type="checkbox"
-                className="hidden"
+                className="sr-only"
                 checked={checked.has(u.id)}
                 onChange={() =>
                   setChecked((prev) => {
@@ -195,7 +196,7 @@ export function EoBinder({
             disabled={aiRunning || checked.size === 0}
             className="ml-auto rounded border border-amber-400/60 px-3 py-1.5 font-display text-lg tracking-wider text-amber-400 transition hover:bg-amber-400/10 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {aiRunning ? 'RESEARCHING…' : 'CHECK INSURABILITY'}
+            {aiRunning ? 'RESEARCHING CARRIERS · PARALLEL' : 'CHECK INSURABILITY'}
           </button>
         </div>
         {aiError && (
@@ -228,7 +229,7 @@ export function EoBinder({
                       rel="noreferrer"
                       className="mr-1 font-mono text-[9px] text-sky-500 underline decoration-dotted hover:text-sky-300"
                     >
-                      {new URL(s.url).hostname.replace('www.', '')}
+                      {safeHostname(s.url)}
                     </a>
                   ))}
                 </span>

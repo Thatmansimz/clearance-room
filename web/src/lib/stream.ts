@@ -16,12 +16,17 @@ export async function streamSSE<E>(
     const { done, value } = await reader.read()
     if (done) break
     buffer += decoder.decode(value, { stream: true })
-    const chunks = buffer.split('\n\n')
+    // Split on CRLF as well as LF: a proxy that rewrites line endings would
+    // otherwise never produce a frame boundary and the run would hang.
+    const chunks = buffer.split(/\r?\n\r?\n/)
     buffer = chunks.pop() ?? ''
     for (const chunk of chunks) {
-      const line = chunk.trim()
-      if (line.startsWith('data: ')) {
-        onEvent(JSON.parse(line.slice(6)) as E)
+      const match = /^data: ?(.*)$/s.exec(chunk.trim())
+      if (!match) continue // ": keepalive" comment frames land here
+      try {
+        onEvent(JSON.parse(match[1]) as E)
+      } catch {
+        // One unparseable frame must not kill a run that is otherwise fine.
       }
     }
   }

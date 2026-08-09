@@ -92,6 +92,7 @@ async def _gemini_json(prompt: str, schema: type[BaseModel], model: str | None =
         config=gt.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=schema,
+            temperature=0.0,
         ),
     )
     return schema.model_validate_json(resp.text)

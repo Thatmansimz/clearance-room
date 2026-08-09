@@ -38,7 +38,7 @@ const MODES: Record<Mode, {
     endpoint: '/api/clearance/run',
     button: '🎬 RUN CLEARANCE',
     itemsLabel: '🎞 clearance items',
-    reportTitle: 'FINAL CLEARANCE REPORT',
+    reportTitle: 'CLEARANCE TRIAGE REPORT',
   },
   truestory: {
     label: '⚖️ True-Story Shield',
@@ -46,7 +46,7 @@ const MODES: Record<Mode, {
     endpoint: '/api/truestory/run',
     button: '⚖️ FACT-CHECK SCRIPT',
     itemsLabel: '⚖ factual claims',
-    reportTitle: 'DEFAMATION EXPOSURE REPORT',
+    reportTitle: 'DEFAMATION EXPOSURE TRIAGE',
   },
 }
 
@@ -55,7 +55,8 @@ export default function App() {
   const [script, setScript] = useState('')
   const [title, setTitle] = useState('UNTITLED SCRIPT')
   const [running, setRunning] = useState(false)
-  const [mock, setMock] = useState({ gemini: false, parallel: false })
+  // null = health check hasn't resolved; never claim "live" before we know.
+  const [mock, setMock] = useState<{ gemini: boolean; parallel: boolean } | null>(null)
   const [stages, setStages] = useState(INITIAL_STAGES)
   const [entities, setEntities] = useState<Entity[]>([])
   const [statuses, setStatuses] = useState<Record<string, EntityStatus>>({})
@@ -91,7 +92,7 @@ export default function App() {
     fetch('/api/health')
       .then((r) => r.json())
       .then((d) => setMock({ gemini: d.mock_gemini, parallel: d.mock_parallel }))
-      .catch(() => {})
+      .catch(() => setMock({ gemini: true, parallel: true }))
   }, [])
 
   const handleEvent = useCallback((ev: PipelineEvent) => {
@@ -170,12 +171,16 @@ export default function App() {
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-3 font-mono text-[11px] uppercase tracking-widest">
-            {mock.gemini && (
+            {mock?.gemini && (
               <span className="rounded border border-fuchsia-500/50 px-2 py-0.5 text-fuchsia-400">
                 gemini mock
               </span>
             )}
-            {mock.parallel ? (
+            {mock === null ? (
+              <span className="rounded border border-stone-600 px-2 py-0.5 text-stone-400">
+                checking…
+              </span>
+            ) : mock.parallel ? (
               <span className="rounded border border-fuchsia-500/50 px-2 py-0.5 text-fuchsia-400">
                 parallel mock
               </span>
@@ -194,11 +199,20 @@ export default function App() {
         </div>
       </header>
 
+      {/* Screen readers get no signal from the streaming board otherwise. */}
+      <div aria-live="polite" className="sr-only">
+        {running
+          ? `Running. ${doneCount} of ${entities.length} items assessed.`
+          : report
+            ? `Run complete. ${report.stats.BLOCKED} blocked, ${report.stats.CAUTION} caution, ${report.stats.CLEAR} clear.`
+            : ''}
+      </div>
+
       <main className="mx-auto max-w-7xl px-6 py-8">
         <p className="mb-6 max-w-3xl text-[14px] leading-relaxed text-stone-400">
           Script clearance in minutes, not weeks. A deterministic Gemini agent breaks your
           screenplay into clearable items, researches each one on the live web with Parallel
-          Search, and hands you an E&amp;O-ready clearance report.
+          Search, and hands your counsel a cited triage report mapped to the E&amp;O checklist.
         </p>
         {/* Mode switch */}
         <div className="mb-6 flex flex-wrap items-center gap-2">
@@ -207,6 +221,7 @@ export default function App() {
               key={m}
               onClick={() => setMode(m)}
               disabled={running}
+              aria-pressed={mode === m}
               className={[
                 'rounded-lg border px-4 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-50',
                 mode === m
@@ -219,7 +234,7 @@ export default function App() {
               >
                 {MODES[m].label}
               </div>
-              <div className="font-mono text-[9px] uppercase tracking-widest text-stone-500">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-stone-400">
                 {MODES[m].tagline}
               </div>
             </button>
@@ -241,6 +256,7 @@ export default function App() {
               value={script}
               onChange={(e) => setScript(e.target.value)}
               spellCheck={false}
+              aria-label="Screenplay text to analyze"
               className="h-[420px] w-full resize-none rounded-lg border border-stone-800 bg-stone-900/60 p-4 font-mono text-[12px] leading-relaxed text-stone-300 outline-none focus:border-amber-500/50"
             />
             <button
@@ -251,7 +267,10 @@ export default function App() {
               {running ? 'ROLLING…' : MODES[mode].button}
             </button>
             {error && (
-              <p className="mt-3 rounded border border-red-500/40 bg-red-950/40 p-3 font-mono text-xs text-red-300">
+              <p
+                role="alert"
+                className="mt-3 rounded border border-red-500/40 bg-red-950/40 p-3 font-mono text-xs text-red-300"
+              >
                 {error}
               </p>
             )}
@@ -277,8 +296,8 @@ export default function App() {
                 </h2>
                 <span className="font-mono text-[10px] text-stone-500">
                   {ticker && (
-                    <span className={running ? 'pulse-soft mr-4 text-sky-400' : 'mr-4 text-sky-500'}>
-                      🔍 {ticker.searches} live searches · {ticker.sources} sources
+                    <span className={running ? 'pulse-soft mr-4 text-sky-400' : 'mr-4 text-sky-400'}>
+                      🔍 {ticker.searches} parallel searches · {ticker.sources} sources
                     </span>
                   )}
                   {doneCount}/{entities.length} assessed

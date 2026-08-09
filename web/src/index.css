@@ -55,7 +55,9 @@ body {
   header, footer, .no-print { display: none !important; }
   main > .mb-6, /* mode switch */
   main .grid.lg\:grid-cols-\[minmax\(320px\,2fr\)_3fr\] > section:first-child { display: none; }
-  main .grid { grid-template-columns: 1fr !important; }
+  /* Collapse only the page's top-level two-column layout — NOT the report's own
+     stat grid, which must keep its columns in print. */
+  main > .grid { grid-template-columns: 1fr !important; }
   #clearance-report {
     margin-top: 0;
     border-color: #d6d3d1;
@@ -67,7 +69,10 @@ body {
   }
   .text-stone-100, .text-stone-200, .text-stone-300 { color: #1c1917 !important; }
   .text-stone-400, .text-stone-500, .text-stone-600 { color: #57534e !important; }
-  .text-amber-400 { color: #92400e !important; }
+  .text-amber-400, .text-amber-400\/80, .text-amber-300 { color: #92400e !important; }
+  .bg-stone-900\/40, .bg-amber-950\/30, .bg-amber-400\/10, .bg-red-950\/20 {
+    background: #fff !important;
+  }
   .text-emerald-400 { color: #065f46 !important; }
   .text-red-400, .text-red-500 { color: #991b1b !important; }
   .text-sky-400, .text-sky-500 { color: #075985 !important; }

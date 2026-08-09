@@ -52,7 +52,7 @@ export function StageRail({
                   {mode === 'truestory' && s.key === 'breakdown' ? 'Claims' : s.label}
                 </span>
               </div>
-              <div className="font-mono text-[9px] uppercase tracking-widest text-stone-500">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-stone-400">
                 {s.engine}
               </div>
             </div>

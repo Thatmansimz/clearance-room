@@ -25,7 +25,7 @@ export function ReportPanel({
     >
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-display text-3xl tracking-wide text-amber-400">{heading}</h2>
-        <span className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-widest text-stone-500">
+        <span className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-widest text-stone-400">
           {title}
           <button
             onClick={() => window.print()}
@@ -50,7 +50,7 @@ export function ReportPanel({
 
       {report.elapsed_seconds != null && (
         <div className="mb-5 flex flex-wrap items-baseline gap-x-6 gap-y-1 rounded-lg border border-stone-800 bg-stone-950/60 px-4 py-3">
-          <span className="font-mono text-[10px] uppercase tracking-widest text-stone-500">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-stone-400">
             human clearance report:{' '}
             <span className="text-stone-300">$1,000–$3,000 · 5–10 business days</span>{' '}
             <a
@@ -72,7 +72,7 @@ export function ReportPanel({
 
       {report.eo_checklist && <EoBinder rows={report.eo_checklist} titleVerdict={titleVerdict} />}
 
-      <p className="mt-4 font-mono text-[9px] uppercase tracking-widest text-stone-600">
+      <p className="mt-4 font-mono text-[10px] uppercase tracking-widest text-stone-400">
         breakdown: gemini via google adk · evidence: parallel search api · assessment: gemini
         structured output · counsel review still required before principal photography
       </p>

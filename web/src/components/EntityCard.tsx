@@ -1,4 +1,5 @@
 import type { Entity, EntityResult, EntityStatus } from '../types'
+import { safeHostname } from '../lib/url'
 
 const CATEGORY_ICONS: Record<string, string> = {
   BRAND: '🏷',
@@ -49,7 +50,7 @@ export function EntityCard({
             <span className="text-sm">{CATEGORY_ICONS[entity.category] ?? '📎'}</span>
             <h3 className="truncate font-semibold text-[15px] text-stone-100">{entity.name}</h3>
           </div>
-          <p className="mt-0.5 font-mono text-[9px] uppercase tracking-widest text-stone-500">
+          <p className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-stone-400">
             {entity.category} · {entity.scene}
           </p>
         </div>
@@ -116,7 +117,7 @@ export function EntityCard({
                   title={s.title}
                   className="font-mono text-[9px] text-sky-500 underline decoration-dotted hover:text-sky-300"
                 >
-                  {new URL(s.url).hostname.replace('www.', '')}
+                  {safeHostname(s.url)}
                 </a>
               ))}
             </div>
