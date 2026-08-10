@@ -146,6 +146,41 @@ Edit notes:
 - Captions on (YouTube auto-captions are fine, spot-check names: Parallel,
   Vertex, E&O).
 
+## Night-of checklist (hotel room)
+
+The demo is live over the network, so the room is part of the shoot.
+
+**Network — the one that can actually kill you.**
+1. Hotel wifi is the biggest risk. **Tether to your phone instead** if you have
+   signal; a captive portal can also silently break a long stream.
+2. Warm the service before rolling — a cold Cloud Run start adds ~4s of blank
+   page to your opening shot:
+   `curl -s https://clearanceroom-957638696965.us-central1.run.app/api/health`
+   Expect `mock_gemini:false, mock_parallel:false`. Anything else, stop and fix.
+3. Do one full throwaway run off-camera. It warms the instance and confirms the
+   network holds a 60-second stream.
+
+**Audio.** Hotel rooms are hard surfaces plus HVAC.
+- Turn the room A/C **off** during VO takes (turn it back on between).
+- Record VO sitting or standing away from the laptop — fan noise is worst at
+  the keyboard, right where the mic is.
+- Soft furnishings kill slap-back: face the bed, not the window. A jacket over
+  a chair behind you helps more than it sounds like it should.
+- Do a 10-second test take and actually listen back on headphones before
+  committing to a full pass.
+
+**Screen.**
+- Full screen, bookmarks bar hidden, one tab, notifications off (Focus mode),
+  dock hidden, battery plugged in.
+- Record at the **prod URL** so the address bar is proof of the hosted requirement.
+- Header must read **PARALLEL LIVE** with no mock badges before you roll.
+
+**Order of shooting.** Screen captures first while you're fresh and the service
+is warm; VO last, in one pass, over the assembled cut.
+
+**If the network dies mid-take:** you have MOCK_MODE for a local fallback, but
+**do not record the judging demo in mock mode.** Reshoot the run instead.
+
 ## Upload checklist
 - YouTube, **public** (not unlisted), English.
 - Title: "ClearanceRoom — script clearance agent (Gemini + Google ADK + Parallel Search)"
