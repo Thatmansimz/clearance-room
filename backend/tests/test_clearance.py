@@ -14,7 +14,12 @@ from fastapi.testclient import TestClient
 from app import config, parallel_client
 from app.eobinder import CHECKLIST, build_checklist
 from app.main import app
-from app.pipeline import PRECEDENTS, VERDICTS, _fallback_summary
+from app.pipeline import (
+    PRECEDENTS,
+    VERDICTS,
+    _fallback_summary,
+    clamp_ungrounded_verdict,
+)
 
 client = TestClient(app)
 
@@ -83,6 +88,39 @@ def test_build_checklist_handles_no_findings():
     rows = build_checklist([])
     assert len(rows) == 12
     assert all(r["status"] != "flagged" for r in rows)
+
+
+# ------------------------------------------------- the no-evidence safety clamp
+
+def test_clear_without_evidence_is_downgraded_to_caution():
+    """The safety property the whole over-flag pitch rests on."""
+    result = clamp_ungrounded_verdict(
+        {"verdict": "CLEAR", "risk_score": 5, "rationale": "Looks fine.",
+         "recommendation": "No action."},
+        evidence=[],
+    )
+    assert result["verdict"] == "CAUTION"
+    assert result["rationale"].startswith("No web evidence was retrieved")
+    assert "Looks fine." in result["rationale"]
+
+
+def test_clear_with_evidence_is_left_alone():
+    result = clamp_ungrounded_verdict(
+        {"verdict": "CLEAR", "risk_score": 5, "rationale": "Incidental use.",
+         "recommendation": "No action."},
+        evidence=[{"url": "https://example.gov/x", "title": "t", "excerpts": []}],
+    )
+    assert result["verdict"] == "CLEAR"
+    assert result["rationale"] == "Incidental use."
+
+
+@pytest.mark.parametrize("verdict", ["CAUTION", "BLOCKED"])
+def test_non_clear_verdicts_are_never_upgraded_by_the_clamp(verdict):
+    result = clamp_ungrounded_verdict(
+        {"verdict": verdict, "risk_score": 80, "rationale": "r", "recommendation": "x"},
+        evidence=[],
+    )
+    assert result["verdict"] == verdict
 
 
 # --------------------------------------------------------------- precedents

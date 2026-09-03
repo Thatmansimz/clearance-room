@@ -114,7 +114,7 @@ MOCK_PARALLEL = MOCK_MODE or not PARALLEL_API_KEY
 The core pipeline: ADK breakdown, deterministic research fan-out, evidence-gated assessment, executive report. Also the precedent cards and the deterministic fallback summary.
 
 ```python
-"""ClearanceRoom pipeline — a deterministic, multi-step clearance agent.
+"""ClearanceRoom pipeline — a multi-step clearance agent.
 
 Stages (fixed order, orchestrated in code — not left to model whim):
   1. BREAKDOWN   Google ADK LlmAgent (Gemini on Vertex AI) extracts every
@@ -257,8 +257,9 @@ def _adk_agent(name: str, instruction: str, output_schema: type[BaseModel] | Non
         model=model,
         instruction=instruction,
         output_schema=output_schema,
-        # Clearance is a legal workflow: the same script must grade the same way
-        # twice. temperature=0 is what lets us call the whole pipeline reproducible.
+        # Clearance is a legal workflow: given the same evidence, the same script
+        # must grade the same way twice. (The evidence itself is live web research,
+        # so it moves as the web moves — that is the point of researching.)
         generate_content_config=gt.GenerateContentConfig(temperature=0.0),
         disallow_transfer_to_parent=True,
         disallow_transfer_to_peers=True,
@@ -315,6 +316,23 @@ def _fallback_summary(assessed: list[dict[str, Any]]) -> str:
                   "summary generation was unavailable for this run.)"
 
 
+def clamp_ungrounded_verdict(result: dict[str, Any],
+                            evidence: list[dict[str, Any]]) -> dict[str, Any]:
+    """A green light must be earned by evidence.
+
+    With no sources the verdict is model prior only, so cap it at CAUTION — the
+    tool is tuned to over-flag rather than under-flag, and this is the branch
+    that safety property actually rests on.
+    """
+    if not evidence and result["verdict"] == "CLEAR":
+        result["verdict"] = "CAUTION"
+        result["rationale"] = (
+            "No web evidence was retrieved for this item, so it cannot be cleared "
+            "on the record. " + result["rationale"]
+        )
+    return result
+
+
 # ------------------------------------------------------------- stage: assess
 
 async def _assess_entity(entity: dict[str, Any], evidence: list[dict[str, Any]]) -> dict[str, Any]:
@@ -343,15 +361,7 @@ async def _assess_entity(entity: dict[str, Any], evidence: list[dict[str, Any]])
     result["verdict"] = result["verdict"].upper()
     if result["verdict"] not in VERDICTS:
         result["verdict"] = "CAUTION"
-    # A green light must be earned by evidence. With no sources the verdict is
-    # model prior only, so cap it — the tool over-flags rather than under-flags.
-    if not evidence and result["verdict"] == "CLEAR":
-        result["verdict"] = "CAUTION"
-        result["rationale"] = (
-            "No web evidence was retrieved for this item, so it cannot be cleared "
-            "on the record. " + result["rationale"]
-        )
-    return result
+    return clamp_ungrounded_verdict(result, evidence)
 
 
 # ---------------------------------------------------------------- the runner
@@ -2004,7 +2014,12 @@ from fastapi.testclient import TestClient
 from app import config, parallel_client
 from app.eobinder import CHECKLIST, build_checklist
 from app.main import app
-from app.pipeline import PRECEDENTS, VERDICTS, _fallback_summary
+from app.pipeline import (
+    PRECEDENTS,
+    VERDICTS,
+    _fallback_summary,
+    clamp_ungrounded_verdict,
+)
 
 client = TestClient(app)
 
@@ -2073,6 +2088,39 @@ def test_build_checklist_handles_no_findings():
     rows = build_checklist([])
     assert len(rows) == 12
     assert all(r["status"] != "flagged" for r in rows)
+
+
+# ------------------------------------------------- the no-evidence safety clamp
+
+def test_clear_without_evidence_is_downgraded_to_caution():
+    """The safety property the whole over-flag pitch rests on."""
+    result = clamp_ungrounded_verdict(
+        {"verdict": "CLEAR", "risk_score": 5, "rationale": "Looks fine.",
+         "recommendation": "No action."},
+        evidence=[],
+    )
+    assert result["verdict"] == "CAUTION"
+    assert result["rationale"].startswith("No web evidence was retrieved")
+    assert "Looks fine." in result["rationale"]
+
+
+def test_clear_with_evidence_is_left_alone():
+    result = clamp_ungrounded_verdict(
+        {"verdict": "CLEAR", "risk_score": 5, "rationale": "Incidental use.",
+         "recommendation": "No action."},
+        evidence=[{"url": "https://example.gov/x", "title": "t", "excerpts": []}],
+    )
+    assert result["verdict"] == "CLEAR"
+    assert result["rationale"] == "Incidental use."
+
+
+@pytest.mark.parametrize("verdict", ["CAUTION", "BLOCKED"])
+def test_non_clear_verdicts_are_never_upgraded_by_the_clamp(verdict):
+    result = clamp_ungrounded_verdict(
+        {"verdict": verdict, "risk_score": 80, "rationale": "r", "recommendation": "x"},
+        evidence=[],
+    )
+    assert result["verdict"] == verdict
 
 
 # --------------------------------------------------------------- precedents

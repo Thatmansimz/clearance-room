@@ -1,6 +1,6 @@
 # 🎬 ClearanceRoom
 
-**Every frame cleared.** A deterministic, multi-step clearance agent for film & TV scripts — built on **Gemini (Vertex AI) + Google ADK**, with the **Parallel Search API** as its research engine.
+**Every frame cleared.** A multi-step clearance agent for film & TV scripts — built on **Gemini (Vertex AI) + Google ADK**, with the **Parallel Search API** as its research engine.
 
 > Before any script shoots, every brand, real person, song, artwork, clip, and location must be cleared for legal risk — a **script clearance report** that runs **$1,000–$3,000 and 5–10 business days** by hand. ClearanceRoom is the fast pre-production **triage** that runs *first*: in about a minute it surfaces the landmines with live web evidence and a concrete fix, so counsel's time goes to the handful of items that actually matter. It's not a substitute for that report — or for entertainment counsel.
 
@@ -24,7 +24,7 @@ Findings carry **precedent cards** citing documented incidents with real dollar 
 
 ## How it works
 
-A fixed four-stage pipeline, orchestrated in code rather than by the model. The control flow is fixed and every model call runs at `temperature=0`, so the same script grades the same way twice — which is what a legal workflow needs. The judgment lives *inside* the stages: Gemini decides what counts as a clearable item, each entity gets its own research objective, and verdicts are graded against retrieved evidence.
+A fixed four-stage pipeline, orchestrated in code rather than by the model. The stage order is fixed and every model call runs at `temperature=0`, so the *grading* is reproducible given the same evidence. The evidence itself comes from live web research, so it moves as the web moves — which is the point of researching rather than recalling, and why every verdict ships with the sources it was graded against. The judgment lives *inside* the stages: Gemini decides what counts as a clearable item, each entity gets its own research objective, and verdicts are graded against retrieved evidence.
 
 | Stage | Engine | What happens |
 |---|---|---|

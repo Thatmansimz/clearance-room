@@ -17,11 +17,13 @@ frames do not extend it. A long clearance run against the 300s default would hav
 died mid-stream. The service now deploys with `--timeout=3600`, and the
 misleading comment that started the problem is gone. → `docs/DEPLOY.md`
 
-**"Deterministic" is now true of the outputs, not just the stage order.** Every
-Gemini call runs at `temperature=0`. Before this, two runs of the same script
-could return different entity counts and different verdicts while the README
-claimed determinism. A clearance report that changes between runs is worthless.
-→ `backend/app/pipeline.py`
+**Grading is reproducible, and the claim is now stated accurately.** Every Gemini
+call runs at `temperature=0`, so the same evidence grades the same way twice.
+What we first wrote — that the whole pipeline was deterministic — was wrong, and
+a re-scoring review caught it against our own docs: evidence comes from live web
+research, so it moves as the web moves, and a verdict can shift with it. That is
+the point of researching rather than recalling. Every verdict ships with the
+sources it was graded against. → `backend/app/pipeline.py`, `README.md`
 
 **A finding can never be cleared without evidence.** If web research returns
 nothing, the verdict is capped at `CAUTION` in code and the rationale says so.
@@ -64,9 +66,9 @@ actually bears on it. → `backend/app/pipeline.py`
 depiction as neutral, negative, or disparaging first — a brand shown as stolen
 or counterfeit is a tarnishment risk and cannot be waved through as incidental.
 
-**Tests.** 15 cases covering evidence flattening, verdict clamping, the E&O
-checklist mapping, request validation, and a full pipeline run streamed through
-the real SSE endpoint. → `backend/tests/`
+**Tests.** Cases covering evidence flattening, the no-evidence verdict clamp,
+the E&O checklist mapping, request validation, and a full pipeline run streamed
+through the real SSE endpoint. → `backend/tests/`
 
 **Accessibility and legibility.** The AI-usage intake was keyboard- and
 screen-reader-inaccessible (`display:none` checkboxes). Run status is now
