@@ -13,8 +13,8 @@ that is actually deployed and running.
 | Extraction & grading | Gemini `gemini-3.6-flash` on Vertex AI |
 | Executive reports | Gemini `gemini-3.1-pro-preview` |
 | Agent framework | Google ADK (`LlmAgent` + `InMemoryRunner`) |
-| Research — breadth | Parallel **Search API** (`POST /v1/search`) |
-| Research — depth | Parallel **Task API** (`POST /v1/tasks/runs`) |
+| Research — breadth | Parallel **Search API** via the official `parallel-web` SDK |
+| Research — depth | Parallel **Task API** (same SDK) — per-field citations, reasoning, confidence |
 | API | FastAPI, streaming over SSE |
 | UI | React + Vite + Tailwind v4 |
 | Hosting | Cloud Run (multi-stage Docker) |
@@ -28,7 +28,7 @@ Screenplay
 [1] BREAKDOWN   pipeline.py   Gemini + Google ADK, structured output
     |           every clearable item, with scene and usage context
     v
-[2] RESEARCH    parallel_client.py   Parallel Search API
+[2] RESEARCH    parallel_client.py   Parallel Search API (SDK)
     |           one research objective per item, bounded fan-out
     v
 [3] ASSESS      pipeline.py   Gemini, JSON schema, temperature 0
@@ -510,7 +510,7 @@ async def run_pipeline(script_text: str) -> AsyncGenerator[dict[str, Any], None]
 
 ### `backend/app/parallel_client.py`
 
-Parallel **Search API** client — breadth. Category-aware query construction, because a bare entity name returns the wrong industry.
+Parallel **Search API** via the official `parallel-web` SDK — breadth. Category-aware query construction, because a bare entity name returns the wrong industry.
 
 ```python
 """Parallel Search API client — the research engine of ClearanceRoom.
@@ -524,9 +524,19 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-import httpx
+from parallel import AsyncParallel
 
 from . import config, mockdata
+
+_client: AsyncParallel | None = None
+
+
+def client() -> AsyncParallel:
+    """The official Parallel SDK client, created once and reused."""
+    global _client
+    if _client is None:
+        _client = AsyncParallel(api_key=config.PARALLEL_API_KEY)
+    return _client
 
 
 class ParallelSearchError(RuntimeError):
@@ -541,22 +551,15 @@ async def search(objective: str, search_queries: list[str]) -> dict[str, Any]:
     if not config.PARALLEL_API_KEY:
         raise ParallelSearchError("PARALLEL_API_KEY is not set (or enable MOCK_MODE=1)")
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(
-            config.PARALLEL_API_URL,
-            headers={
-                "x-api-key": config.PARALLEL_API_KEY,
-                "Content-Type": "application/json",
-            },
-            json={
-                "objective": objective,
-                "search_queries": search_queries,
-                "mode": config.PARALLEL_MODE,
-            },
+    try:
+        resp = await client().search(
+            objective=objective,
+            search_queries=search_queries,
+            mode=config.PARALLEL_MODE,
         )
-        if resp.status_code != 200:
-            raise ParallelSearchError(f"Parallel Search {resp.status_code}: {resp.text[:300]}")
-        return resp.json()
+    except Exception as exc:
+        raise ParallelSearchError(f"Parallel Search failed: {exc}") from exc
+    return resp.model_dump()
 
 
 def evidence_from_response(response: dict[str, Any], max_results: int = 5) -> list[dict[str, Any]]:
@@ -707,11 +710,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any, AsyncGenerator
 
-import httpx
-
 from . import config, mockdata
-
-TASKS_URL = "https://api.parallel.ai/v1/tasks/runs"
+from .parallel_client import client
 
 # What a producer needs in order to act on a flagged item. Every one of these
 # fields comes back with its own citations + confidence from the Task API.
@@ -765,27 +765,20 @@ class DossierError(RuntimeError):
     pass
 
 
-async def _submit(client: httpx.AsyncClient, entity: dict[str, Any]) -> str:
-    resp = await client.post(
-        TASKS_URL,
-        headers={"x-api-key": config.PARALLEL_API_KEY,
-                 "Content-Type": "application/json"},
-        json={
-            "processor": config.PARALLEL_TASK_PROCESSOR,
-            "input": {
-                "item": entity["name"],
-                "category": entity["category"],
-                "usage_in_script": entity["context"],
-            },
-            "task_spec": {
-                "input_schema": {"type": "json", "json_schema": INPUT_SCHEMA},
-                "output_schema": {"type": "json", "json_schema": DOSSIER_SCHEMA},
-            },
+async def _submit(entity: dict[str, Any]) -> str:
+    run = await client().task_run.create(
+        processor=config.PARALLEL_TASK_PROCESSOR,
+        input={
+            "item": entity["name"],
+            "category": entity["category"],
+            "usage_in_script": entity["context"],
+        },
+        task_spec={
+            "input_schema": {"type": "json", "json_schema": INPUT_SCHEMA},
+            "output_schema": {"type": "json", "json_schema": DOSSIER_SCHEMA},
         },
     )
-    if resp.status_code not in (200, 202):
-        raise DossierError(f"Parallel Task submit {resp.status_code}: {resp.text[:200]}")
-    return resp.json()["run_id"]
+    return run.run_id
 
 
 async def run_dossier(entity: dict[str, Any]) -> AsyncGenerator[dict[str, Any], None]:
@@ -799,30 +792,29 @@ async def run_dossier(entity: dict[str, Any]) -> AsyncGenerator[dict[str, Any], 
         yield {"type": "dossier_stage", "status": "submitted",
                "processor": config.PARALLEL_TASK_PROCESSOR, "item": entity["name"]}
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            run_id = await _submit(client, entity)
-            yield {"type": "dossier_stage", "status": "running", "run_id": run_id}
+        run_id = await _submit(entity)
+        yield {"type": "dossier_stage", "status": "running", "run_id": run_id}
 
-            headers = {"x-api-key": config.PARALLEL_API_KEY}
-            deadline = config.DOSSIER_TIMEOUT_SECONDS
-            waited = 0.0
-            status = "queued"
-            while waited < deadline:
-                await asyncio.sleep(config.DOSSIER_POLL_SECONDS)
-                waited += config.DOSSIER_POLL_SECONDS
-                r = await client.get(f"{TASKS_URL}/{run_id}", headers=headers)
-                status = r.json().get("status", "unknown")
-                yield {"type": "dossier_tick", "status": status,
-                       "elapsed": round(waited)}
-                if status in ("completed", "failed", "cancelled"):
-                    break
+        # Poll for progress so the UI can show the run is alive, then fetch
+        # the result. The SDK's result() long-polls, so the last call blocks
+        # until the run finishes rather than spinning.
+        deadline = config.DOSSIER_TIMEOUT_SECONDS
+        waited = 0.0
+        status = "queued"
+        while waited < deadline:
+            await asyncio.sleep(config.DOSSIER_POLL_SECONDS)
+            waited += config.DOSSIER_POLL_SECONDS
+            run = await client().task_run.retrieve(run_id)
+            status = run.status
+            yield {"type": "dossier_tick", "status": status, "elapsed": round(waited)}
+            if status in ("completed", "failed", "cancelled"):
+                break
 
-            if status != "completed":
-                raise DossierError(f"deep research did not complete (status: {status})")
+        if status != "completed":
+            raise DossierError(f"deep research did not complete (status: {status})")
 
-            r = await client.get(f"{TASKS_URL}/{run_id}/result", headers=headers,
-                                 timeout=120.0)
-            output = r.json()["output"]
+        result = await client().task_run.result(run_id, api_timeout=120)
+        output = result.output.model_dump()
 
         content = output.get("content", {})
         basis_by_field = {b["field"]: b for b in output.get("basis", [])}
@@ -3915,6 +3907,7 @@ uvicorn[standard]>=0.30
 httpx>=0.27
 python-dotenv>=1.0
 pydantic>=2.8
+parallel-web>=1.3.0
 pytest>=8.0
 ```
 
@@ -4176,19 +4169,15 @@ THE END
 
 ## Deploy
 
-The flags matter. Cloud Run's `--timeout` covers the **total** duration of a
-streaming response, not just idle time — the 300s default kills a long run
-mid-stream, and SSE keepalives do not extend it.
+Cloud Run's `--timeout` covers the **total** duration of a streaming
+response, not just idle time — the 300s default kills a long run mid-stream,
+and SSE keepalives do not extend it.
 
 ```bash
 gcloud run deploy clearanceroom \
-  --source . \
-  --project <PROJECT_ID> \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --memory 1Gi \
-  --timeout=3600 \
-  --max-instances=2 \
+  --source . --project <PROJECT_ID> --region us-central1 \
+  --allow-unauthenticated --memory 1Gi \
+  --timeout=3600 --max-instances=2 \
   --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=<PROJECT_ID>,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.6-flash,GEMINI_REPORT_MODEL=gemini-3.1-pro-preview,PARALLEL_API_KEY=<KEY>,PARALLEL_MODE=advanced,PARALLEL_TASK_PROCESSOR=core-fast"
 ```
 
@@ -4200,13 +4189,9 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env          # MOCK_MODE=1 works with no keys at all
 .venv/bin/uvicorn app.main:app --port 8801
 ```
-
 ```bash
-cd web
-npm install
-npm run dev -- --port 5177    # proxies /api to :8801
+cd web && npm install && npm run dev -- --port 5177   # proxies /api to :8801
 ```
-
 ```bash
 cd backend && MOCK_MODE=1 .venv/bin/python -m pytest tests/ -q
 ```
