@@ -9,9 +9,19 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-import httpx
+from parallel import AsyncParallel
 
 from . import config, mockdata
+
+_client: AsyncParallel | None = None
+
+
+def client() -> AsyncParallel:
+    """The official Parallel SDK client, created once and reused."""
+    global _client
+    if _client is None:
+        _client = AsyncParallel(api_key=config.PARALLEL_API_KEY)
+    return _client
 
 
 class ParallelSearchError(RuntimeError):
@@ -26,22 +36,15 @@ async def search(objective: str, search_queries: list[str]) -> dict[str, Any]:
     if not config.PARALLEL_API_KEY:
         raise ParallelSearchError("PARALLEL_API_KEY is not set (or enable MOCK_MODE=1)")
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(
-            config.PARALLEL_API_URL,
-            headers={
-                "x-api-key": config.PARALLEL_API_KEY,
-                "Content-Type": "application/json",
-            },
-            json={
-                "objective": objective,
-                "search_queries": search_queries,
-                "mode": config.PARALLEL_MODE,
-            },
+    try:
+        resp = await client().search(
+            objective=objective,
+            search_queries=search_queries,
+            mode=config.PARALLEL_MODE,
         )
-        if resp.status_code != 200:
-            raise ParallelSearchError(f"Parallel Search {resp.status_code}: {resp.text[:300]}")
-        return resp.json()
+    except Exception as exc:
+        raise ParallelSearchError(f"Parallel Search failed: {exc}") from exc
+    return resp.model_dump()
 
 
 def evidence_from_response(response: dict[str, Any], max_results: int = 5) -> list[dict[str, Any]]:

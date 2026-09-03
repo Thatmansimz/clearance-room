@@ -23,11 +23,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any, AsyncGenerator
 
-import httpx
-
 from . import config, mockdata
-
-TASKS_URL = "https://api.parallel.ai/v1/tasks/runs"
+from .parallel_client import client
 
 # What a producer needs in order to act on a flagged item. Every one of these
 # fields comes back with its own citations + confidence from the Task API.
@@ -81,27 +78,20 @@ class DossierError(RuntimeError):
     pass
 
 
-async def _submit(client: httpx.AsyncClient, entity: dict[str, Any]) -> str:
-    resp = await client.post(
-        TASKS_URL,
-        headers={"x-api-key": config.PARALLEL_API_KEY,
-                 "Content-Type": "application/json"},
-        json={
-            "processor": config.PARALLEL_TASK_PROCESSOR,
-            "input": {
-                "item": entity["name"],
-                "category": entity["category"],
-                "usage_in_script": entity["context"],
-            },
-            "task_spec": {
-                "input_schema": {"type": "json", "json_schema": INPUT_SCHEMA},
-                "output_schema": {"type": "json", "json_schema": DOSSIER_SCHEMA},
-            },
+async def _submit(entity: dict[str, Any]) -> str:
+    run = await client().task_run.create(
+        processor=config.PARALLEL_TASK_PROCESSOR,
+        input={
+            "item": entity["name"],
+            "category": entity["category"],
+            "usage_in_script": entity["context"],
+        },
+        task_spec={
+            "input_schema": {"type": "json", "json_schema": INPUT_SCHEMA},
+            "output_schema": {"type": "json", "json_schema": DOSSIER_SCHEMA},
         },
     )
-    if resp.status_code not in (200, 202):
-        raise DossierError(f"Parallel Task submit {resp.status_code}: {resp.text[:200]}")
-    return resp.json()["run_id"]
+    return run.run_id
 
 
 async def run_dossier(entity: dict[str, Any]) -> AsyncGenerator[dict[str, Any], None]:
@@ -115,30 +105,29 @@ async def run_dossier(entity: dict[str, Any]) -> AsyncGenerator[dict[str, Any], 
         yield {"type": "dossier_stage", "status": "submitted",
                "processor": config.PARALLEL_TASK_PROCESSOR, "item": entity["name"]}
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            run_id = await _submit(client, entity)
-            yield {"type": "dossier_stage", "status": "running", "run_id": run_id}
+        run_id = await _submit(entity)
+        yield {"type": "dossier_stage", "status": "running", "run_id": run_id}
 
-            headers = {"x-api-key": config.PARALLEL_API_KEY}
-            deadline = config.DOSSIER_TIMEOUT_SECONDS
-            waited = 0.0
-            status = "queued"
-            while waited < deadline:
-                await asyncio.sleep(config.DOSSIER_POLL_SECONDS)
-                waited += config.DOSSIER_POLL_SECONDS
-                r = await client.get(f"{TASKS_URL}/{run_id}", headers=headers)
-                status = r.json().get("status", "unknown")
-                yield {"type": "dossier_tick", "status": status,
-                       "elapsed": round(waited)}
-                if status in ("completed", "failed", "cancelled"):
-                    break
+        # Poll for progress so the UI can show the run is alive, then fetch
+        # the result. The SDK's result() long-polls, so the last call blocks
+        # until the run finishes rather than spinning.
+        deadline = config.DOSSIER_TIMEOUT_SECONDS
+        waited = 0.0
+        status = "queued"
+        while waited < deadline:
+            await asyncio.sleep(config.DOSSIER_POLL_SECONDS)
+            waited += config.DOSSIER_POLL_SECONDS
+            run = await client().task_run.retrieve(run_id)
+            status = run.status
+            yield {"type": "dossier_tick", "status": status, "elapsed": round(waited)}
+            if status in ("completed", "failed", "cancelled"):
+                break
 
-            if status != "completed":
-                raise DossierError(f"deep research did not complete (status: {status})")
+        if status != "completed":
+            raise DossierError(f"deep research did not complete (status: {status})")
 
-            r = await client.get(f"{TASKS_URL}/{run_id}/result", headers=headers,
-                                 timeout=120.0)
-            output = r.json()["output"]
+        result = await client().task_run.result(run_id, api_timeout=120)
+        output = result.output.model_dump()
 
         content = output.get("content", {})
         basis_by_field = {b["field"]: b for b in output.get("basis", [])}

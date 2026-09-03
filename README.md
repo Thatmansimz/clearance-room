@@ -48,7 +48,8 @@ Every step streams to the UI over SSE — you watch the breakdown land, research
 ### Runtime integration points (for judges)
 
 - **Google Cloud / Gemini / ADK**: [`backend/app/pipeline.py`](backend/app/pipeline.py) — `google.adk.agents.LlmAgent` + `InMemoryRunner` (stages 1 & 4), `google.genai.Client` on Vertex AI (stage 3). Same pattern in [`truestory.py`](backend/app/truestory.py) and [`titleguard.py`](backend/app/titleguard.py).
-- **Parallel Search API**: [`backend/app/parallel_client.py`](backend/app/parallel_client.py) — `POST https://api.parallel.ai/v1/search`, called once per extracted entity at runtime; TitleGuard fires a two-pronged sweep (registrations + common-law) per title, and the E&O Binder's AI intake ([`backend/app/eobinder.py`](backend/app/eobinder.py)) researches live carrier exclusion language.
+- **Parallel (official `parallel-web` SDK)**: [`backend/app/parallel_client.py`](backend/app/parallel_client.py) — `AsyncParallel(...).search(...)`, called once per extracted entity at runtime; TitleGuard fires a two-pronged sweep (registrations + common-law) per title, and the E&O Binder's AI intake ([`backend/app/eobinder.py`](backend/app/eobinder.py)) researches live carrier exclusion language.
+- **Parallel Task API** (same SDK): [`backend/app/dossier.py`](backend/app/dossier.py) — `task_run.create(...)` / `task_run.result(...)` for Deep Dossier, returning per-field citations, reasoning, and confidence.
 
 Models: `gemini-3.6-flash` for extraction and assessment, `gemini-3.1-pro-preview` for reports, both on Vertex AI at the `global` location.
 
